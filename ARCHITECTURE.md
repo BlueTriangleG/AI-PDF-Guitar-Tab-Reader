@@ -64,10 +64,10 @@ Rules:
 
 ## 5. Technology Decisions (Research)
 
-PDF rendering: PDFKit
-- Apple PDFKit is used by macOS apps like Preview and Safari and provides PDFDocument/PDFPage and PDFView for display, navigation, zoom, and selection.
-- PDFPage can render pages, and PDFKit supports PDF annotations (display is supported, while annotation content display is app-defined).
-- Decision: use PDFKit in a native bridge for rendering and annotation extraction; the renderer process consumes rasterized tiles and overlay data.
+PDF rendering: PDF.js (renderer)
+- PDF.js provides a web-based rendering pipeline that runs in the renderer process with a dedicated worker.
+- We load PDF bytes via IPC and render pages to canvas, avoiding file:// constraints in dev.
+- Decision: use PDF.js for rendering; keep the PDFKit Swift CLI as an optional metadata helper.
 
 File watching: chokidar
 - Chokidar normalizes file system events, supports atomic writes, and has awaitWriteFinish for large file writes.
@@ -80,6 +80,10 @@ SQLite driver: better-sqlite3
 Default paths: Electron app.getPath
 - Use app.getPath("documents") for the user-visible default library folder.
 - Use app.getPath("userData") for the SQLite database and app settings.
+
+Renderer UI: React + Vite
+- React provides the component model for the reader, library, and practice tools UI.
+- Vite builds the renderer bundle and supports fast iteration during Electron development.
 
 ## 6. Core Modules
 

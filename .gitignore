@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+*.log
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+/build/
+/dist/
+/out/
+/src/infrastructure/pdf/pdfkit-cli/.build/
+/src/infrastructure/pdf/pdfkit-cli/bin/
+/LibraryCache/
