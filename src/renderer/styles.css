@@ -359,14 +359,16 @@ button.accent {
 
 .toolbar-controls {
   display: flex;
-  gap: 12px;
+  gap: 14px;
+  row-gap: 10px;
   align-items: center;
   flex-wrap: wrap;
-  padding: 4px 0;
-  border-radius: 0;
-  border: none;
-  background: transparent;
+  padding: 10px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(28, 24, 20, 0.12);
+  background: rgba(255, 255, 255, 0.88);
   -webkit-app-region: no-drag;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .metronome-launch {
@@ -400,20 +402,28 @@ button.accent {
 }
 
 .control-group {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   color: var(--ink-soft);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.control-group + .control-group {
+  padding-left: 12px;
+  border-left: 1px solid rgba(28, 24, 20, 0.12);
 }
 
 .control-group label {
   text-transform: uppercase;
   letter-spacing: 0.6px;
   font-size: 10px;
+  margin-right: 2px;
 }
 
 .segmented {
@@ -832,7 +842,13 @@ button.accent {
 }
 
 .single-container.centered {
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.single-container.centered .page-stack {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .single-container img {
