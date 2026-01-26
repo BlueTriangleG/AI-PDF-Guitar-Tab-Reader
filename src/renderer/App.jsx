@@ -151,6 +151,7 @@ export default function App() {
   const canvasRef = useRef(null);
   const singleRef = useRef(null);
   const readerStageRef = useRef(null);
+  const sidebarRef = useRef(null);
   const pageBaseRef = useRef({ width: null, height: null });
   const zoomSnapRef = useRef(null);
   const zoomScrollRef = useRef(null);
@@ -162,7 +163,6 @@ export default function App() {
     scrollTop: 0,
     container: null
   });
-  const sidebarHoverTimeout = useRef(null);
 
   const {
     pdfDoc,
@@ -312,28 +312,6 @@ export default function App() {
     });
   }, []);
 
-  const clearSidebarHoverTimeout = useCallback(() => {
-    if (sidebarHoverTimeout.current) {
-      clearTimeout(sidebarHoverTimeout.current);
-      sidebarHoverTimeout.current = null;
-    }
-  }, []);
-
-  const openSidebarHover = useCallback(() => {
-    if (sidebarPinned) return;
-    clearSidebarHoverTimeout();
-    setSidebarHover(true);
-  }, [sidebarPinned, clearSidebarHoverTimeout]);
-
-  const scheduleSidebarClose = useCallback(() => {
-    if (sidebarPinned) return;
-    clearSidebarHoverTimeout();
-    sidebarHoverTimeout.current = setTimeout(() => {
-      setSidebarHover(false);
-    }, 120);
-  }, [sidebarPinned, clearSidebarHoverTimeout]);
-
-  useEffect(() => () => clearSidebarHoverTimeout(), [clearSidebarHoverTimeout]);
 
   const handlePanMove = useCallback((event) => {
     if (!panState.current.active) return;
@@ -455,6 +433,29 @@ export default function App() {
   }, [selectedDoc, viewMode, pageCount, setSinglePageIndex, toggleFullscreen, toggleSidebarPinned]);
 
   useEffect(() => {
+    if (sidebarPinned || !sidebarHover) return undefined;
+    const hoverBuffer = 14;
+    const handleMouseMove = (event) => {
+      if (!sidebarRef.current) return;
+      const rect = sidebarRef.current.getBoundingClientRect();
+      const inside =
+        event.clientX >= rect.left - hoverBuffer &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom;
+      if (inside) return;
+      if (!inside) setSidebarHover(false);
+    };
+    const handleMouseLeave = () => setSidebarHover(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [sidebarPinned, sidebarHover]);
+
+  useEffect(() => {
     if (viewMode !== 'single' || pageDelay <= 0 || pageCount <= 1) return undefined;
     const timer = setInterval(() => {
       setSinglePageIndex((prev) => {
@@ -503,28 +504,21 @@ export default function App() {
       }`}
     >
       <main className="layout">
-        {!sidebarPinned && (
+        {!sidebarPinned && !sidebarHover && (
           <div
             className="library-edge"
-            onMouseEnter={openSidebarHover}
-            onMouseLeave={(event) => {
-              if (event.relatedTarget?.closest('.library')) return;
-              scheduleSidebarClose();
-            }}
+            onMouseEnter={() => setSidebarHover(true)}
             onClick={toggleSidebarPinned}
           />
         )}
         <aside
           className={`library ${sidebarVisible ? 'open' : 'collapsed'}`}
+          ref={sidebarRef}
           onMouseEnter={() => {
-            openSidebarHover();
-          }}
-          onMouseLeave={(event) => {
-            if (sidebarPinned) return;
-            if (event.relatedTarget?.closest('.library-edge')) return;
-            scheduleSidebarClose();
+            if (!sidebarPinned) setSidebarHover(true);
           }}
         >
+          <div className="library-drag" aria-hidden="true" />
           <div className="library-head">
             <div className="library-actions">
               <span className="library-title">Library</span>

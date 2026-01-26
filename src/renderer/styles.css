@@ -124,7 +124,23 @@ button.accent {
   min-height: 0;
   box-shadow: 0 12px 30px rgba(28, 24, 20, 0.08);
   transition: transform 0.25s ease, opacity 0.2s ease, box-shadow 0.25s ease;
+  opacity: 1;
+  visibility: visible;
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.library-drag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
   -webkit-app-region: drag;
+}
+
+.library * {
+  -webkit-app-region: no-drag;
 }
 
 .pin-toggle {
@@ -140,6 +156,7 @@ button.accent {
   box-shadow: 0 8px 16px rgba(28, 24, 20, 0.08);
   color: var(--ink);
 }
+
 
 .library-head {
   display: grid;
@@ -174,6 +191,7 @@ button.accent {
   height: 10px;
   position: relative;
   display: block;
+  pointer-events: none;
 }
 
 .pin-toggle .pin-icon::before {
@@ -216,15 +234,22 @@ button.accent {
   width: 340px;
   transform: translateX(-100%);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   box-shadow: 0 8px 16px rgba(28, 24, 20, 0.05);
   z-index: 3;
 }
 
-#app.sidebar-hover .library {
+#app.sidebar-collapsed.sidebar-hover .library {
   transform: translateX(0);
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+  z-index: 10;
+}
+
+#app.sidebar-hover .reader-toolbar {
+  -webkit-app-region: no-drag;
 }
 
 .library-head input {
@@ -318,6 +343,7 @@ button.accent {
   position: relative;
   overflow: hidden;
   -webkit-app-region: drag;
+  z-index: 1;
 }
 
 .reader-toolbar::before {
