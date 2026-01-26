@@ -2,148 +2,138 @@
 
 Project: AI PDF Guitar Tab Reader
 
-Status: Draft (requirements-aligned, research-backed)
+Status: Implementation snapshot (MVP)
 
 Owner: BlueTriangleG
 
-Date: 2025-02-14
+Date: 2026-01-26
 
 Assumptions:
-- V1 focuses on a PDF gallery and reading experience; no OCR or transcription.
-- The primary asset is PDF files (digital or scanned), but V1 only renders them for reading.
-- The app must include practice utilities like a metronome and guided page traversal.
-- Platform is macOS desktop via Electron (latest).
+- V1 focuses on a PDF library and reading experience; no OCR or transcription.
+- The primary asset is PDF files; rendering happens in the renderer with PDF.js.
+- Platform is macOS desktop via Electron.
 - Storage is local SQLite; no server dependency or sync.
 - The app creates a default library folder on first launch; users can switch to a custom location.
-- The app supports live file watching to reflect external changes in the library folder.
-- Users can choose an iCloud Drive folder as the library location.
+- The app watches the active library folder for external changes.
 - Input is keyboard and mouse only.
-- PDF rendering uses macOS PDFKit via a native bridge (renderer consumes bitmap/tiles).
-- If PDFs contain embedded annotations, they are displayed; user-created annotations are a future slot.
+- A macOS PDFKit CLI is optional for metadata and annotation extraction.
 
 ## 1. Goals
 - Provide a fast, stable PDF gallery for guitar scores/tabs.
-- Deliver a focused reader with smooth zoom, page navigation, and multi-page view.
-- Support guided reading: auto-scroll, page-turn automation, and per-document presets.
-- Include essential practice tools (metronome, count-in, session timer).
-- Persist reading state and user preferences across sessions.
+- Deliver a reader with smooth zoom, pan, and continuous or single-page view.
+- Support guided reading via auto-scroll and auto page turn.
+- Include a lightweight practice metronome.
+- Persist reading state across sessions.
 
 ## 2. Non-Goals
-- OCR extraction, tab parsing, or transcription in V1.
-- Automatic conversion to MusicXML or other structured notation.
-- Camera-based scanning and real-time recognition.
-- Cloud sync (unless explicitly required later).
+- OCR, tab parsing, or transcription in V1.
+- Automatic conversion to MusicXML or structured notation.
+- Camera scanning and real-time recognition.
+- Cloud sync or multi-device accounts.
 - Cross-platform support in V1 (Windows/Linux/mobile).
 
-## 3. High-Level Architecture
+## 3. High-Level Architecture (Current)
 
-PDF Import
-  -> Library Indexer (metadata, tags, collections)
-     -> PDF Renderer (page cache, zoom, tiling)
-        -> Reader UI (view modes, navigation)
-           -> Guided Reading (auto-scroll, page turn)
-              -> Practice Tools (metronome, timer)
+Filesystem (library root)
+  -> File scanner + watcher (main)
+     -> Library service (scan/import/upsert)
+        -> SQLite catalog/settings
+           -> IPC events (library:changed)
+              -> Renderer library UI
 
-Future extension:
-  -> OCR / AI Services (optional)
+Renderer reader flow:
+  -> IPC pdf:read (read bytes from main)
+     -> PDF.js worker -> canvas rendering
+        -> UI controls (zoom/scroll/view mode)
 
-## 4. Layered Architecture (Maintainability)
+Optional metadata path:
+  -> PDFKit CLI (main) -> page count, annotations, cached renders
 
-The codebase follows a layered architecture to keep UI, domain logic, and infrastructure concerns separate.
+## 4. Process Boundaries
 
-Layers (top to bottom):
-- Presentation: Electron renderer UI, view models, UI state.
-- Application: use cases (open document, start metronome, auto-scroll).
-- Domain: core models and rules (Document, ReadingState, MetronomeSettings).
-- Infrastructure: SQLite, file system, PDF rendering, audio output.
+Main process:
+- Owns SQLite, library scanning, file watching.
+- Hosts the PDFKit CLI adapter.
+- Exposes IPC endpoints to the renderer.
 
-Rules:
-- Dependencies only point downward.
-- Domain has no knowledge of Electron, SQLite, or UI.
-- Application coordinates domain and infrastructure via interfaces.
+Renderer process:
+- React UI for library + reader.
+- PDF.js document loading and rendering.
+- Metronome and guided reading logic.
+- Saves reading state via IPC.
 
-## 5. Technology Decisions (Research)
+Preload:
+- Context-isolated API bridge (library, pdf, reader, settings, window).
+
+## 5. Layered Architecture (Implementation)
+
+- Presentation: React components and view models in src/renderer.
+- Application: src/application/use_cases orchestrates library actions.
+- Infrastructure: SQLite, filesystem, PDFKit CLI wrappers.
+- Main process wiring in src/main.
+
+Dependencies flow from renderer -> IPC -> main -> application -> infrastructure.
+
+## 6. Technology Decisions (Current)
 
 PDF rendering: PDF.js (renderer)
-- PDF.js provides a web-based rendering pipeline that runs in the renderer process with a dedicated worker.
-- We load PDF bytes via IPC and render pages to canvas, avoiding file:// constraints in dev.
-- Decision: use PDF.js for rendering; keep the PDFKit Swift CLI as an optional metadata helper.
+- Uses pdfjs-dist/legacy with a worker.
+- Loads PDF bytes via IPC (pdf:read).
+- Uses cmaps and standard_fonts copied to src/renderer/public/pdfjs.
+
+Metadata/annotations: PDFKit CLI (main, optional)
+- Swift CLI wrapper around PDFKit.
+- Used for page counts; annotations endpoints exist.
 
 File watching: chokidar
-- Chokidar normalizes file system events, supports atomic writes, and has awaitWriteFinish for large file writes.
-- Decision: use chokidar to watch the library folder and update the SQLite catalog.
+- Filters for .pdf and waits for stable writes.
 
 SQLite driver: better-sqlite3
-- better-sqlite3 provides a synchronous API, full transaction support, and worker thread support for long-running tasks.
-- Decision: keep the SQLite connection in the main process with a small worker queue for heavier queries and bulk scans.
-
-Default paths: Electron app.getPath
-- Use app.getPath("documents") for the user-visible default library folder.
-- Use app.getPath("userData") for the SQLite database and app settings.
+- Synchronous access from main process.
+- WAL + foreign keys enabled.
 
 Renderer UI: React + Vite
-- React provides the component model for the reader, library, and practice tools UI.
-- Vite builds the renderer bundle and supports fast iteration during Electron development.
 
-## 6. Core Modules
+## 7. Core Modules (Current)
 
-### 6.1 Library and Catalog
-- Import PDFs from disk and organize into collections/setlists.
-- Extract lightweight metadata (title, page count, page size).
-- Provide search and filters (tags, composer/artist).
-- Manage a default library folder and user-selected library locations.
-- Watch the active library folder for external changes; update catalog on add/change/unlink.
+### 7.1 Library Service
+- Resolves library root (setting or default).
+- Scans folders for PDFs and upserts metadata.
+- Watches filesystem changes and emits library:changed.
+- Imports PDFs by copying into the library root.
 
-### 6.2 PDF Rendering Engine
-- Use PDFKit in the main process for rendering pages to images/tiles.
-- Provide an IPC-backed renderer service for page rasterization and caching.
-- Support view modes: single page, continuous scroll, facing pages.
-- Handle mixed page sizes and orientations.
+### 7.2 SQLite Repository
+- Stores documents, reading state, and settings.
+- Tables for tags/collections/setlists/annotations exist but are not yet surfaced in UI.
 
-### 6.3 Reader Engine
-- Navigation: thumbnails, page scrubber, page jump.
-- Reading state persistence: last page, zoom, scroll offset.
-- Accessibility: adjustable zoom presets and contrast settings.
-- Smooth scrolling uses time-based movement to avoid jitter across refresh rates.
+### 7.3 PDF Service (PDFKit CLI)
+- getDocumentInfo, getAnnotations, renderPage.
+- Caches rendered pages under userData/LibraryCache when used.
 
-### 6.4 Guided Reading
-- Auto-scroll with adjustable speed (pixels per second).
-- Auto page turn with configurable delay or per-page timing.
-- Profiles per document or per setlist.
+### 7.4 Reader View Model (Renderer)
+- Loads PDF bytes and renders with PDF.js.
+- Manages zoom, view mode, scroll offsets, and auto-scroll/page-turn.
 
-### 6.5 Practice Tools
-- Metronome: BPM, time signature, accents, audio/visual cues.
-- Count-in and practice timer.
-- Optional setlist runner: step through pieces with timers.
+### 7.5 Practice Tools
+- Metronome in the renderer using Web Audio.
+- Visual pulse and basic time signature support.
 
-### 6.6 Annotations and Markers (Placeholder for V1)
-- If the PDF includes embedded annotations, display them in the reader.
-- Provide a slot in the data model and UI for future user-created annotations.
+## 8. Data Model (Current)
 
-### 6.7 Future OCR and AI Services
-- OCR for scanned PDFs.
-- Tab extraction and structured export.
-- These are isolated behind a service interface to avoid coupling with V1.
-
-## 7. Data Model (Draft)
-
-Library
-- documents: [Document]
-- collections: [Collection]
-- setlists: [Setlist]
-
-Document
+Document (SQLite)
 - id
 - title
 - artist
 - file_path
 - page_count
-- tags: [string]
+- file_mtime
+- file_size
+- created_at
+- updated_at
 - last_opened
-- reading_state: ReadingState
-- annotations: [Annotation]
 
-ReadingState
+ReadingState (SQLite)
+- document_id
 - page_index
 - zoom
 - scroll_offset
@@ -151,48 +141,27 @@ ReadingState
 - auto_scroll_speed
 - auto_page_turn_delay
 
-Collection
-- name
-- document_ids: [id]
+Settings
+- key
+- value
 
-Setlist
-- name
-- items: [SetlistItem]
+Scaffolded but unused in UI:
+- document_tags, collections, collection_items, setlists, setlist_items, annotations
 
-SetlistItem
-- document_id
-- order
-- per_item_timer (optional)
+## 9. Storage and SQLite Schema (Current)
 
-Annotation
-- page_index
-- rect (x, y, w, h)
-- note
-- label
-- source (embedded | user)
-
-MetronomeSettings
-- bpm
-- time_signature
-- accents
-- sound_profile
-- count_in_bars
-
-PracticeSession
-- setlist_id
-- start_time
-- duration
-- metronome_settings
-
-## 8. Storage and SQLite Schema (Draft)
+settings
+- key (pk)
+- value
 
 documents
 - id (pk)
 - title
 - artist
 - file_path (unique)
-- file_hash (optional)
 - page_count
+- file_mtime
+- file_size
 - created_at
 - updated_at
 - last_opened
@@ -247,108 +216,66 @@ Indices:
 - collection_items(collection_id, sort_order)
 - setlist_items(setlist_id, sort_order)
 
-## 9. PDF Rendering Pipeline (PDFKit)
+## 10. PDF Rendering Pipeline (Current)
 
-Open document:
-- Load PDFDocument from file path.
-- Read page count and media box sizes.
-- Extract embedded annotations for overlay metadata (page, bounds, type).
+Renderer:
+- api.pdf.readFile(filePath) retrieves bytes from main.
+- PDF.js loads the document with cMapUrl and standardFontDataUrl.
+- Each page renders to a canvas via PageCanvas.
 
-Render page:
-- Request page image at scale or tile coordinates.
-- Use PDFPage to draw into a bitmap context.
-- Return PNG or raw RGBA buffer to the renderer.
+Main (optional):
+- PDFKit CLI provides info, annotations, or PNG renders.
+- PNG renders are cached by (path, mtime, size, scale).
 
-Cache strategy:
-- Memory LRU by (document_id, page_index, scale).
-- Prefetch next/previous pages based on scroll direction.
-- Optional disk cache for very large documents (future).
-
-## 10. IPC Contracts (Main <-> Renderer)
+## 11. IPC Contracts (Main <-> Renderer)
 
 Main process services:
-- library.scanFolder(path)
-- library.listDocuments()
-- library.getDocument(id)
-- pdf.open(path) -> document_handle
-- pdf.getPageInfo(handle)
-- pdf.renderPage(handle, page_index, scale, tile)
-- pdf.getAnnotations(handle, page_index)
-- settings.get()
-- settings.set(partial)
+- library.listDocuments
+- library.scan
+- library.getRoot
+- library.setRoot
+- library.import
+- pdf.info
+- pdf.annotations
+- pdf.render
+- pdf.read
+- reader.saveState
+- settings.get
+- settings.set
+- window.setTrafficLights
 
-Renderer process:
-- reader.setAutoScroll(speed)
-- reader.setPageTurn(delay)
-- metronome.start(settings)
-- metronome.stop()
+Renderer events:
+- library:changed
+- menu:import-pdf
+- menu:library-location
 
-## 11. Suggested Folder Structure
+## 12. UI Surfaces (Current)
 
-repo_root/
-  README.md
-  ARCHITECTURE.md
-  src/
-    main/                    # Electron main process
-      bootstrap/
-      ipc/
-      windows/
-    renderer/                # Electron renderer process (UI)
-      ui/
-      view_models/
-    application/             # Use cases and orchestration
-      use_cases/
-      ports/
-    domain/                  # Entities and domain logic
-      models/
-      services/
-    infrastructure/          # DB, file system, PDF rendering, audio
-      sqlite/
-      filesystem/
-      pdf/                   # PDFKit wrapper, render cache
-      audio/
-  tests/
-    unit/
-    integration/
-  data/
-    samples/
-
-## 12. Interfaces
-
-App UI:
-- Library view: import, search, tags, collections.
-- Reader view: page view, continuous scroll, navigation.
-- Practice overlay: metronome, auto-scroll, timers.
-
-Local API (internal):
-- open_document(path) -> Document
-- save_reading_state(document_id, state)
-- start_metronome(settings)
+- Library sidebar: search, import, library location.
+- Reader: continuous/single view, zoom, pan, auto-scroll.
+- Auto page turn (single-page mode).
+- Metronome and focus/fullscreen controls.
 
 ## 13. Observability
-- Performance metrics: render time, cache hits, memory usage.
-- Error logging for failed PDF loads.
-- Optional debug overlay for scroll/page timing.
+
+- No structured telemetry.
+- Errors surface in renderer UI or console during load/render.
 
 ## 14. Risks and Mitigations
-- Large PDFs can cause slow rendering
-  -> tile-based rendering and cache limits
-- Auto-scroll jitter on low-end devices
-  -> time-based animation and speed smoothing
-- Mixed page sizes break continuous layout
-  -> per-page scale normalization
-- External file edits cause inconsistent state
-  -> watcher debounce + file hash re-check
 
-## 15. Testing Strategy
-- Rendering tests with small/large PDFs.
-- Reader state persistence tests.
-- Guided reading timing tests.
-- Metronome accuracy tests (audio and visual).
-- Library watcher tests (add/change/remove).
+- Large PDFs can stress memory in PDF.js -> prefer lower zoom and pagination.
+- File watcher churn on large folders -> debounce via chokidar awaitWriteFinish.
+- Missing PDFKit CLI -> page count falls back to null (renderer still renders).
+
+## 15. Testing Strategy (Current)
+
+- No automated tests are present yet.
+- Manual verification: library scan/import, render, auto-scroll, state persistence.
 
 ## 16. References
-- Apple PDFKit Programming Guide (overview, PDFView/PDFDocument/PDFPage, annotations): https://developer.apple.com/library/archive/documentation/GraphicsImaging/Conceptual/PDFKitGuide/
-- Chokidar file watching: https://github.com/paulmillr/chokidar
+- PDF.js: https://github.com/mozilla/pdf.js
+- pdfjs-dist: https://www.npmjs.com/package/pdfjs-dist
+- Electron app.getPath: https://www.electronjs.org/docs/latest/api/app
+- Chokidar: https://github.com/paulmillr/chokidar
 - better-sqlite3: https://github.com/WiseLibs/better-sqlite3
-- Electron app.getPath: https://github.com/electron/electron/blob/main/docs/api/app.md
+- Apple PDFKit Guide: https://developer.apple.com/library/archive/documentation/GraphicsImaging/Conceptual/PDFKitGuide/
