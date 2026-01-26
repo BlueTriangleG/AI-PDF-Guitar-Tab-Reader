@@ -7,8 +7,16 @@ function sendToFocused(channel) {
   }
 }
 
-function setAppMenu() {
+function setAppMenu({ onOpenWindow } = {}) {
   const isMac = process.platform === 'darwin';
+  const newWindowItem = {
+    label: 'Open New Window',
+    accelerator: 'CmdOrCtrl+Shift+N',
+    enabled: Boolean(onOpenWindow),
+    click: () => {
+      if (onOpenWindow) onOpenWindow();
+    }
+  };
 
   const template = [
     ...(isMac
@@ -84,6 +92,8 @@ function setAppMenu() {
     {
       label: 'Window',
       submenu: [
+        newWindowItem,
+        { type: 'separator' },
         { role: 'minimize' },
         { role: 'zoom' },
         ...(isMac

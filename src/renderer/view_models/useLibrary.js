@@ -15,6 +15,7 @@ export function useLibrary(api) {
     setDocuments(docs || []);
     setLibraryRoot(root || '');
     setLoading(false);
+    return { documents: docs || [], libraryRoot: root || '' };
   }, [api]);
 
   useEffect(() => {
@@ -37,10 +38,15 @@ export function useLibrary(api) {
   }, [api, refresh]);
 
   const importFiles = useCallback(async () => {
-    if (!api?.library) return [];
+    if (!api?.library) {
+      return { importedPaths: [], documents: [] };
+    }
     const imported = await api.library.importFiles();
-    await refresh();
-    return imported;
+    const result = await refresh();
+    return {
+      importedPaths: imported,
+      documents: result?.documents || []
+    };
   }, [api, refresh]);
 
   return {
@@ -52,4 +58,3 @@ export function useLibrary(api) {
     importFiles
   };
 }
-

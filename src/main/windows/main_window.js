@@ -3,13 +3,15 @@ const { app, BrowserWindow } = require('electron');
 
 function createMainWindow() {
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+  const isMac = process.platform === 'darwin';
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 1000,
     minHeight: 700,
-    titleBarStyle: 'hidden',
+    titleBarStyle: isMac ? 'hidden' : 'default',
     backgroundColor: '#f6f1e6',
+    autoHideMenuBar: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -17,8 +19,10 @@ function createMainWindow() {
     }
   });
 
-  if (process.platform === 'darwin') {
+  if (isMac) {
     mainWindow.setWindowButtonPosition({ x: 18, y: 14 });
+  } else {
+    mainWindow.setMenuBarVisibility(true);
   }
 
   if (devServerUrl) {

@@ -147,6 +147,7 @@ export default function App() {
   const [sidebarHover, setSidebarHover] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [toolbarHover, setToolbarHover] = useState(false);
+  const [stageActive, setStageActive] = useState(false);
   const [fitScale, setFitScale] = useState(1);
   const [isCentered, setIsCentered] = useState(false);
 
@@ -323,6 +324,34 @@ export default function App() {
         if (el) el.removeEventListener('scroll', handleScroll);
       });
       clearTimeout(scrollTimeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    let inactivityTimeout;
+    const stage = readerStageRef.current;
+    if (!stage) return;
+
+    const handleMouseMove = () => {
+      setStageActive(true);
+      clearTimeout(inactivityTimeout);
+      inactivityTimeout = setTimeout(() => {
+        setStageActive(false);
+      }, 1000);
+    };
+
+    const handleMouseLeave = () => {
+      clearTimeout(inactivityTimeout);
+      setStageActive(false);
+    };
+
+    stage.addEventListener('mousemove', handleMouseMove);
+    stage.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      stage.removeEventListener('mousemove', handleMouseMove);
+      stage.removeEventListener('mouseleave', handleMouseLeave);
+      clearTimeout(inactivityTimeout);
     };
   }, []);
 
@@ -525,15 +554,32 @@ export default function App() {
     return () => clearInterval(timer);
   }, [viewMode, pageDelay, pageCount, setSinglePageIndex]);
 
+  const handleSelect = useCallback((doc) => {
+    setSelectedDoc(doc);
+    setSinglePageIndex(doc.page_index || 0);
+  }, [setSelectedDoc, setSinglePageIndex]);
+
+  const handleImport = useCallback(async () => {
+    const result = await importFiles();
+    const importedPaths = result?.importedPaths || [];
+    const importedDocs = result?.documents || documents;
+    if (!importedPaths.length) return;
+    const lastPath = importedPaths[importedPaths.length - 1];
+    const nextDoc = importedDocs.find((doc) => doc.file_path === lastPath);
+    if (nextDoc) {
+      handleSelect(nextDoc);
+    }
+  }, [importFiles, documents, handleSelect]);
+
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
-    const offImport = api.onMenuImportPdf(() => importFiles());
+    const offImport = api.onMenuImportPdf(() => handleImport());
     const offLocation = api.onMenuLibraryLocation(() => chooseLibraryRoot());
     return () => {
       if (offImport) offImport();
       if (offLocation) offLocation();
     };
-  }, [importFiles, chooseLibraryRoot]);
+  }, [handleImport, chooseLibraryRoot]);
 
   useEffect(() => {
     if (pageCount === 0) return;
@@ -547,11 +593,6 @@ export default function App() {
     if (!term) return documents;
     return documents.filter((doc) => (doc.title || '').toLowerCase().includes(term));
   }, [documents, search]);
-
-  const handleSelect = (doc) => {
-    setSelectedDoc(doc);
-    setSinglePageIndex(doc.page_index || 0);
-  };
 
   const sidebarVisible = sidebarPinned || sidebarHover;
 
@@ -632,12 +673,6 @@ export default function App() {
               </div>
             </div>
             <div className="toolbar-controls">
-              <button className={`ghost ${focusMode ? 'active' : ''}`} onClick={toggleFocusMode} title="Toggle Focus Mode (Z)">
-                {focusMode ? 'Exit Focus' : 'Focus'}
-              </button>
-              <button className="ghost" onClick={toggleFullscreen}>
-                {isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
-              </button>
               <div className="control-group">
                 <label>View</label>
                 <select value={viewMode} onChange={(event) => setViewMode(event.target.value)}>
@@ -720,6 +755,54 @@ export default function App() {
           </div>
 
           <div id="reader-stage" className="reader-stage" ref={readerStageRef}>
+            <div className={`stage-controls ${stageActive ? 'visible' : ''}`}>
+              <button
+                className={`stage-btn ${focusMode ? 'active' : ''}`}
+                onClick={toggleFocusMode}
+                title={focusMode ? 'Exit Focus (Z)' : 'Focus Mode (Z)'}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {focusMode ? (
+                    <>
+                      <path d="M9 4v5H4" />
+                      <path d="M15 4v5h5" />
+                      <path d="M9 20v-5H4" />
+                      <path d="M15 20v-5h5" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                    </>
+                  )}
+                </svg>
+              </button>
+              <button
+                className="stage-btn"
+                onClick={toggleFullscreen}
+                title={isFullscreen ? 'Exit Fullscreen (F)' : 'Fullscreen (F)'}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {isFullscreen ? (
+                    <>
+                      <path d="M4 14h6v6" />
+                      <path d="M20 10h-6V4" />
+                      <path d="M14 10l7-7" />
+                      <path d="M3 21l7-7" />
+                    </>
+                  ) : (
+                    <>
+                      <polyline points="15 3 21 3 21 9" />
+                      <polyline points="9 21 3 21 3 15" />
+                      <polyline points="21 3 14 10" />
+                      <polyline points="3 21 10 14" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
             <div
               id="page-canvas"
               className={`page-canvas ${viewMode === 'continuous' ? '' : 'hidden'} ${isCentered ? 'centered' : ''}`}
@@ -731,7 +814,28 @@ export default function App() {
             >
               {pageLoading && <div className="empty">Rendering pages...</div>}
               {pdfError && <div className="empty">Failed to load PDF: {pdfError}</div>}
-              {!pageLoading && !selectedDoc && <div className="empty">Choose a score to begin reading.</div>}
+              {!pageLoading && !selectedDoc && (
+                <div className="empty-state">
+                  <div className="empty-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 12h6" />
+                      <path d="M12 9v6" />
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="empty-title">No Score Selected</h3>
+                  <p className="empty-desc">Choose a score from the library or import new files</p>
+                  <button className="empty-btn" onClick={handleImport}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    Import PDF
+                  </button>
+                </div>
+              )}
               <div className="page-stack">
                 {selectedDoc && pdfDoc && Array.from({ length: pageCount }).map((_, index) => (
                   <div className="page-shell" key={`${selectedDoc.id}-${index}`}>

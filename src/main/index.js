@@ -1,4 +1,4 @@
-const { app } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const { createMainWindow } = require('./windows/main_window');
 const { registerIpcHandlers } = require('./ipc/handlers');
 const { initServices } = require('./bootstrap/init_services');
@@ -8,19 +8,28 @@ let mainWindow;
 
 app.whenReady().then(async () => {
   const services = await initServices();
-  mainWindow = createMainWindow();
-  setAppMenu();
+  const createAndTrackWindow = () => {
+    const window = createMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      mainWindow = window;
+    }
+    return window;
+  };
+  mainWindow = createAndTrackWindow();
+  setAppMenu({ onOpenWindow: createAndTrackWindow });
   registerIpcHandlers({ window: mainWindow, services });
 
   services.library.on('changed', async () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('library:changed');
-    }
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('library:changed');
+      }
+    });
   });
 
   app.on('activate', () => {
-    if (mainWindow === null) {
-      mainWindow = createMainWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createAndTrackWindow();
     }
   });
 });
