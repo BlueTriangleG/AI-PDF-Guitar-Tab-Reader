@@ -3,24 +3,40 @@ import { useLibrary } from './view_models/useLibrary.js';
 import { useReader } from './view_models/useReader.js';
 
 const api = window.api;
+const LOOKAHEAD_MS = 25;
+const SCHEDULE_AHEAD_SEC = 0.12;
+
+function getAppView() {
+  if (typeof window === 'undefined') return 'main';
+  const params = new URLSearchParams(window.location.search);
+  return params.get('view') || 'main';
+}
 
 function formatCount(count) {
   if (count === 1) return '1 Score';
   return `${count} Scores`;
 }
 
-function useMetronome({ bpm, timeSignature, active, onPulse }) {
+function useMetronome({ bpm, timeSignature, subdivision, countInBars, active, onPulse }) {
   const audioRef = useRef(null);
-  const intervalRef = useRef(null);
-  const beatRef = useRef(0);
+  const schedulerRef = useRef(null);
+  const nextNoteTimeRef = useRef(0);
+  const tickRef = useRef(0);
+  const pulseTimersRef = useRef([]);
 
   useEffect(() => {
+    const clearPulseTimers = () => {
+      pulseTimersRef.current.forEach((id) => clearTimeout(id));
+      pulseTimersRef.current = [];
+    };
+
     if (!active) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (schedulerRef.current) {
+        clearInterval(schedulerRef.current);
       }
-      intervalRef.current = null;
-      beatRef.current = 0;
+      schedulerRef.current = null;
+      tickRef.current = 0;
+      clearPulseTimers();
       return;
     }
 
@@ -30,39 +46,88 @@ function useMetronome({ bpm, timeSignature, active, onPulse }) {
     if (!audioRef.current) {
       audioRef.current = new AudioContext();
     }
+    const ctx = audioRef.current;
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
 
-    const tick = () => {
-      const ctx = audioRef.current;
+    const safeBpm = Math.max(30, Number(bpm) || 0);
+    const beatsPerBar = Math.max(1, Number(timeSignature) || 1);
+    const subdivisions = Math.min(Math.max(Number(subdivision) || 1, 1), 4);
+    const countIn = Math.max(0, Number(countInBars) || 0);
+    const ticksPerBar = beatsPerBar * subdivisions;
+    const secondsPerTick = (60 / safeBpm) / subdivisions;
+    const lookaheadMs = LOOKAHEAD_MS;
+    const scheduleAheadTime = SCHEDULE_AHEAD_SEC;
+    let countInTicksRemaining = countIn * ticksPerBar;
+
+    nextNoteTimeRef.current = ctx.currentTime + 0.05;
+    tickRef.current = 0;
+    clearPulseTimers();
+
+    const schedulePulse = (time, pulseInfo) => {
+      if (!onPulse) return;
+      const delay = Math.max(time - ctx.currentTime, 0);
+      const id = setTimeout(() => onPulse(pulseInfo), delay * 1000);
+      pulseTimersRef.current.push(id);
+    };
+
+    const scheduleClick = (time, { isDownbeat, isBeat, isCountIn }) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      const isAccent = beatRef.current % timeSignature === 0;
-      const now = ctx.currentTime;
+      const freq = isDownbeat ? (isCountIn ? 980 : 880) : isBeat ? 660 : 520;
+      const level = isDownbeat ? 0.28 : isBeat ? 0.18 : 0.1;
 
       osc.type = 'sine';
-      osc.frequency.value = isAccent ? 880 : 660;
-      gain.gain.setValueAtTime(0.001, now);
-      gain.gain.exponentialRampToValueAtTime(0.3, now + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, time);
+      gain.gain.exponentialRampToValueAtTime(level, time + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.08);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.14);
-
-      beatRef.current += 1;
-      onPulse();
+      osc.start(time);
+      osc.stop(time + 0.1);
     };
 
-    tick();
-    intervalRef.current = setInterval(tick, (60 / bpm) * 1000);
+    const scheduler = () => {
+      while (nextNoteTimeRef.current < ctx.currentTime + scheduleAheadTime) {
+        const tickIndex = tickRef.current;
+        const isBeat = tickIndex % subdivisions === 0;
+        const isDownbeat = tickIndex % ticksPerBar === 0;
+        const isCountIn = countInTicksRemaining > 0;
+        const beatIndex = Math.floor(tickIndex / subdivisions) + 1;
+        const countInBarsRemaining = isCountIn ? Math.ceil(countInTicksRemaining / ticksPerBar) : 0;
+
+        scheduleClick(nextNoteTimeRef.current, { isDownbeat, isBeat, isCountIn });
+        if (isBeat) {
+          schedulePulse(nextNoteTimeRef.current, {
+            beatIndex,
+            beatsPerBar,
+            isDownbeat,
+            isCountIn,
+            countInBarsRemaining
+          });
+        }
+
+        tickRef.current = (tickIndex + 1) % ticksPerBar;
+        if (countInTicksRemaining > 0) {
+          countInTicksRemaining -= 1;
+        }
+        nextNoteTimeRef.current += secondsPerTick;
+      }
+    };
+
+    schedulerRef.current = setInterval(scheduler, lookaheadMs);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (schedulerRef.current) {
+        clearInterval(schedulerRef.current);
       }
-      intervalRef.current = null;
+      schedulerRef.current = null;
+      clearPulseTimers();
     };
-  }, [active, bpm, timeSignature, onPulse]);
+  }, [active, bpm, timeSignature, subdivision, countInBars, onPulse]);
 }
 
 function PageCanvas({ pdfDoc, pageIndex, zoom }) {
@@ -132,16 +197,198 @@ function PageCanvas({ pdfDoc, pageIndex, zoom }) {
   );
 }
 
-export default function App() {
-  const MIN_ZOOM = 0.1;
-  const MAX_ZOOM = 3;
-  const { documents, libraryRoot, loading, chooseLibraryRoot, importFiles } = useLibrary(api);
-  const [search, setSearch] = useState('');
-  const [selectedDoc, setSelectedDoc] = useState(null);
+function MetronomeWindow() {
   const [pulse, setPulse] = useState(false);
   const [bpm, setBpm] = useState(92);
   const [timeSignature, setTimeSignature] = useState(4);
+  const [subdivision, setSubdivision] = useState(1);
+  const [countInBars, setCountInBars] = useState(0);
   const [metronomeOn, setMetronomeOn] = useState(false);
+  const [beatState, setBeatState] = useState({
+    beatIndex: 1,
+    isCountIn: false,
+    countInBarsRemaining: 0
+  });
+
+  const handlePulse = useCallback((pulseInfo) => {
+    setPulse(true);
+    if (pulseInfo) {
+      setBeatState({
+        beatIndex: pulseInfo.beatIndex,
+        isCountIn: pulseInfo.isCountIn,
+        countInBarsRemaining: pulseInfo.countInBarsRemaining
+      });
+    }
+    setTimeout(() => setPulse(false), 140);
+  }, []);
+
+  useMetronome({
+    bpm,
+    timeSignature,
+    subdivision,
+    countInBars,
+    active: metronomeOn,
+    onPulse: handlePulse
+  });
+
+  useEffect(() => {
+    if (!metronomeOn) {
+      setBeatState({
+        beatIndex: 1,
+        isCountIn: false,
+        countInBarsRemaining: 0
+      });
+    }
+  }, [metronomeOn]);
+
+  useEffect(() => {
+    setBeatState((prev) => ({
+      ...prev,
+      beatIndex: Math.min(prev.beatIndex, timeSignature)
+    }));
+  }, [timeSignature]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const tag = event.target?.tagName || '';
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        setMetronomeOn((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const beatDots = useMemo(
+    () => Array.from({ length: timeSignature }, (_, index) => index + 1),
+    [timeSignature]
+  );
+  const clampedBeatIndex = Math.min(beatState.beatIndex, timeSignature);
+  const countInLabel = beatState.countInBarsRemaining === 1 ? 'bar' : 'bars';
+
+  return (
+    <div className={`metronome-window ${metronomeOn ? 'running' : ''}`}>
+      <div className="metronome-drag" aria-hidden="true" />
+      <header className="metronome-head">
+        <div className="metronome-title-block">
+          <div className="metronome-title">Metronome</div>
+          <div className="metronome-sub">Feel the pulse. Keep the groove.</div>
+        </div>
+        <button
+          id="metronome-toggle"
+          className={`metronome-toggle ${metronomeOn ? 'active' : ''}`}
+          onClick={() => setMetronomeOn((prev) => !prev)}
+        >
+          <span className="toggle-label">{metronomeOn ? 'Stop' : 'Start'}</span>
+          <span className={`toggle-dot ${pulse ? 'active' : ''}`} aria-hidden="true" />
+        </button>
+      </header>
+      <div className="metronome-main">
+        <div className="metronome-tempo">
+          <label htmlFor="bpm">Tempo</label>
+          <div className="bpm-row">
+            <input
+              id="bpm"
+              type="number"
+              min="40"
+              max="220"
+              value={bpm}
+              onChange={(event) => setBpm(parseInt(event.target.value || '0', 10))}
+            />
+            <span className="bpm-unit">BPM</span>
+          </div>
+          <input
+            className="bpm-slider"
+            type="range"
+            min="40"
+            max="220"
+            step="1"
+            value={bpm}
+            onChange={(event) => setBpm(parseInt(event.target.value || '0', 10))}
+          />
+        </div>
+        <div className="metronome-beats">
+          <div
+            className={`beat-ring ${beatState.isCountIn ? 'count-in' : ''}`}
+            role="group"
+            aria-label="Beat display"
+          >
+            {beatDots.map((beat) => (
+              <span
+                key={beat}
+                className={`beat-dot ${metronomeOn && beat === clampedBeatIndex ? 'active' : ''} ${
+                  beat === 1 ? 'downbeat' : ''
+                }`}
+              />
+            ))}
+          </div>
+          <div className="beat-readout" aria-live="polite">
+            {metronomeOn
+              ? beatState.isCountIn
+                ? `Count-in: ${beatState.countInBarsRemaining} ${countInLabel}`
+                : `Beat ${clampedBeatIndex} / ${timeSignature}`
+              : 'Ready'}
+          </div>
+        </div>
+      </div>
+      <div className="metronome-settings">
+        <div className="setting">
+          <label htmlFor="time-signature">Time</label>
+          <select
+            id="time-signature"
+            value={timeSignature}
+            onChange={(event) => setTimeSignature(parseInt(event.target.value, 10))}
+          >
+            <option value={4}>4/4</option>
+            <option value={3}>3/4</option>
+            <option value={6}>6/8</option>
+          </select>
+        </div>
+        <div className="setting">
+          <label htmlFor="subdivision">Subdivision</label>
+          <select
+            id="subdivision"
+            value={subdivision}
+            onChange={(event) => setSubdivision(parseInt(event.target.value, 10))}
+          >
+            <option value={1}>1/4</option>
+            <option value={2}>1/8</option>
+            <option value={3}>Triplet</option>
+            <option value={4}>1/16</option>
+          </select>
+        </div>
+        <div className="setting">
+          <label htmlFor="count-in">Count-in</label>
+          <select
+            id="count-in"
+            value={countInBars}
+            onChange={(event) => setCountInBars(parseInt(event.target.value, 10))}
+          >
+            <option value={0}>No Count-In</option>
+            <option value={1}>1 Bar</option>
+            <option value={2}>2 Bars</option>
+            <option value={3}>3 Bars</option>
+            <option value={4}>4 Bars</option>
+          </select>
+        </div>
+      </div>
+      <div className="metronome-footer">
+        <span className="metronome-hint">Space to start/stop</span>
+      </div>
+    </div>
+  );
+}
+
+function MainApp() {
+  const MIN_ZOOM = 0.1;
+  const MAX_ZOOM = 3;
+  const PAGE_GAP = 12;
+  const metronomeIcon = `${import.meta.env.BASE_URL}icons/Metronome%20Icon.png`;
+  const { documents, libraryRoot, loading, chooseLibraryRoot, importFiles } = useLibrary(api);
+  const [search, setSearch] = useState('');
+  const [selectedDoc, setSelectedDoc] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarHover, setSidebarHover] = useState(false);
@@ -150,6 +397,7 @@ export default function App() {
   const [stageActive, setStageActive] = useState(false);
   const [fitScale, setFitScale] = useState(1);
   const [isCentered, setIsCentered] = useState(false);
+  const [pagesPerView, setPagesPerView] = useState(1);
 
   const canvasRef = useRef(null);
   const singleRef = useRef(null);
@@ -168,6 +416,7 @@ export default function App() {
     scrollTop: 0,
     container: null
   });
+  const clampedPagesPerView = Math.min(Math.max(pagesPerView, 1), 3);
 
   const {
     pdfDoc,
@@ -188,16 +437,6 @@ export default function App() {
     pendingScroll
   } = useReader(api, selectedDoc);
 
-  useMetronome({
-    bpm,
-    timeSignature,
-    active: metronomeOn,
-    onPulse: () => {
-      setPulse(true);
-      setTimeout(() => setPulse(false), 140);
-    }
-  });
-
   const activateStage = useCallback(() => {
     setStageActive(true);
     if (stageActivityTimer.current) {
@@ -216,13 +455,16 @@ export default function App() {
     const host = container || readerStageRef.current;
     if (!host) return;
     const padding = 16;
+    const gapTotal = (clampedPagesPerView - 1) * PAGE_GAP;
     const available = Math.max(host.clientWidth - padding, 200);
-    const fit = available / baseWidth;
-    const nextScale = Math.min(Math.max(fit, 1), MAX_ZOOM);
+    const usable = Math.max(available - gapTotal, 160);
+    const fit = usable / (baseWidth * clampedPagesPerView);
+    const minScale = clampedPagesPerView > 1 ? MIN_ZOOM : 1;
+    const nextScale = Math.min(Math.max(fit, minScale), MAX_ZOOM);
     setFitScale(nextScale);
-    const contentWidth = baseWidth * nextScale * zoom;
+    const contentWidth = baseWidth * nextScale * zoom * clampedPagesPerView + gapTotal;
     setIsCentered(contentWidth < host.clientWidth - 10);
-  }, [viewMode, zoom, MAX_ZOOM]);
+  }, [viewMode, zoom, MAX_ZOOM, MIN_ZOOM, clampedPagesPerView, PAGE_GAP]);
 
   useEffect(() => {
     let cancelled = false;
@@ -258,9 +500,10 @@ export default function App() {
     const baseWidth = pageBaseRef.current.width;
     const host = viewMode === 'single' ? singleRef.current : canvasRef.current;
     if (!baseWidth || !host) return;
-    const contentWidth = baseWidth * fitScale * zoom;
+    const gapTotal = (clampedPagesPerView - 1) * PAGE_GAP;
+    const contentWidth = baseWidth * fitScale * zoom * clampedPagesPerView + gapTotal;
     setIsCentered(contentWidth < host.clientWidth - 10);
-  }, [fitScale, zoom, viewMode]);
+  }, [fitScale, zoom, viewMode, clampedPagesPerView, PAGE_GAP]);
 
   useEffect(() => {
     if (pendingScroll.current !== null && canvasRef.current && viewMode === 'continuous') {
@@ -391,6 +634,12 @@ export default function App() {
     setToolbarHover(false);
   }, []);
 
+  const handleOpenMetronome = useCallback(() => {
+    if (api?.window?.openMetronome) {
+      api.window.openMetronome();
+    }
+  }, []);
+
   const handlePanMove = useCallback((event) => {
     if (!panState.current.active) return;
     const { container, startX, startY, scrollLeft, scrollTop } = panState.current;
@@ -459,7 +708,7 @@ export default function App() {
     const cursorX = event.clientX - rect.left;
     const cursorY = event.clientY - rect.top;
     const currentZoom = zoom;
-    const factor = Math.exp(-event.deltaY * 0.002);
+    const factor = Math.exp(-event.deltaY * 0.0003333);
     const nextZoom = Math.min(Math.max(currentZoom * factor, MIN_ZOOM), MAX_ZOOM);
     if (nextZoom === currentZoom) return;
     const ratio = nextZoom / currentZoom;
@@ -475,12 +724,6 @@ export default function App() {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
       if (!selectedDoc) return;
 
-      if (event.code === 'Space') {
-        event.preventDefault();
-        setMetronomeOn((prev) => !prev);
-        return;
-      }
-
       if (event.key.toLowerCase() === 'f') {
         toggleFullscreen();
       }
@@ -494,11 +737,12 @@ export default function App() {
       }
 
       if (viewMode === 'single') {
+        const maxStart = Math.max(pageCount - clampedPagesPerView, 0);
         if (event.key === 'ArrowRight') {
-          setSinglePageIndex((prev) => Math.min(prev + 1, pageCount - 1));
+          setSinglePageIndex((prev) => Math.min(prev + clampedPagesPerView, maxStart));
         }
         if (event.key === 'ArrowLeft') {
-          setSinglePageIndex((prev) => Math.max(prev - 1, 0));
+          setSinglePageIndex((prev) => Math.max(prev - clampedPagesPerView, 0));
         }
       } else if (canvasRef.current) {
         if (event.key === 'ArrowDown') {
@@ -512,7 +756,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedDoc, viewMode, pageCount, setSinglePageIndex, toggleFullscreen, toggleSidebarPinned, toggleFocusMode]);
+  }, [selectedDoc, viewMode, pageCount, clampedPagesPerView, setSinglePageIndex, toggleFullscreen, toggleSidebarPinned, toggleFocusMode]);
 
   useEffect(() => {
     if (sidebarPinned || !sidebarHover) return undefined;
@@ -558,15 +802,16 @@ export default function App() {
   }, [focusMode, toolbarHover]);
 
   useEffect(() => {
-    if (viewMode !== 'single' || pageDelay <= 0 || pageCount <= 1) return undefined;
+    if (viewMode !== 'single' || pageDelay <= 0 || pageCount <= clampedPagesPerView) return undefined;
+    const maxStart = Math.max(pageCount - clampedPagesPerView, 0);
     const timer = setInterval(() => {
       setSinglePageIndex((prev) => {
-        if (prev >= pageCount - 1) return prev;
-        return prev + 1;
+        if (prev >= maxStart) return prev;
+        return Math.min(prev + clampedPagesPerView, maxStart);
       });
     }, pageDelay * 1000);
     return () => clearInterval(timer);
-  }, [viewMode, pageDelay, pageCount, setSinglePageIndex]);
+  }, [viewMode, pageDelay, pageCount, clampedPagesPerView, setSinglePageIndex]);
 
   const handleSelect = useCallback((doc) => {
     setSelectedDoc(doc);
@@ -597,10 +842,11 @@ export default function App() {
 
   useEffect(() => {
     if (pageCount === 0) return;
-    if (singlePageIndex > pageCount - 1) {
-      setSinglePageIndex(Math.max(pageCount - 1, 0));
+    const maxStart = Math.max(pageCount - clampedPagesPerView, 0);
+    if (singlePageIndex > maxStart) {
+      setSinglePageIndex(maxStart);
     }
-  }, [pageCount, singlePageIndex, setSinglePageIndex]);
+  }, [pageCount, clampedPagesPerView, singlePageIndex, setSinglePageIndex]);
 
   const filteredDocuments = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -609,8 +855,16 @@ export default function App() {
   }, [documents, search]);
 
   const sidebarVisible = sidebarPinned || sidebarHover;
+  const maxStartIndex = Math.max(pageCount - clampedPagesPerView, 0);
   const isPrevDisabled = !selectedDoc || singlePageIndex <= 0;
-  const isNextDisabled = !selectedDoc || pageCount === 0 || singlePageIndex >= pageCount - 1;
+  const isNextDisabled = !selectedDoc || pageCount === 0 || singlePageIndex >= maxStartIndex;
+  const singlePageIndices = useMemo(() => {
+    if (!selectedDoc || !pdfDoc) return [];
+    const remaining = pageCount - singlePageIndex;
+    const count = Math.min(clampedPagesPerView, remaining);
+    if (count <= 0) return [];
+    return Array.from({ length: count }, (_, offset) => singlePageIndex + offset);
+  }, [selectedDoc, pdfDoc, pageCount, singlePageIndex, clampedPagesPerView]);
 
   return (
     <div
@@ -691,10 +945,40 @@ export default function App() {
             <div className="toolbar-controls">
               <div className="control-group">
                 <label>View</label>
-                <select value={viewMode} onChange={(event) => setViewMode(event.target.value)}>
-                  <option value="continuous">Continuous</option>
-                  <option value="single">Single Page</option>
-                </select>
+                <div className="segmented" role="group" aria-label="View mode">
+                  <button
+                    type="button"
+                    className={viewMode === 'continuous' ? 'active' : ''}
+                    onClick={() => setViewMode('continuous')}
+                    aria-pressed={viewMode === 'continuous'}
+                  >
+                    Continues
+                  </button>
+                  <button
+                    type="button"
+                    className={viewMode === 'single' ? 'active' : ''}
+                    onClick={() => setViewMode('single')}
+                    aria-pressed={viewMode === 'single'}
+                  >
+                    Page by Page
+                  </button>
+                </div>
+              </div>
+              <div className="control-group">
+                <label>Pages / View</label>
+                <div className="segmented" role="group" aria-label="Pages per view">
+                  {[1, 2, 3].map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      className={clampedPagesPerView === count ? 'active' : ''}
+                      onClick={() => setPagesPerView(count)}
+                      aria-pressed={clampedPagesPerView === count}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="control-group">
                 <label>Zoom</label>
@@ -708,49 +992,21 @@ export default function App() {
                   onChange={(event) => setZoom(parseFloat(event.target.value))}
                 />
               </div>
-              <div className="control-group">
-                <label>Auto Scroll</label>
-                <input
-                  id="scroll-speed"
-                  type="range"
-                  min="0"
-                  max="140"
-                  step="5"
-                  value={scrollSpeed}
-                  onChange={(event) => setScrollSpeed(parseFloat(event.target.value))}
-                />
-              </div>
-              <div className="toolbar-practice">
+              {viewMode === 'continuous' && (
                 <div className="control-group">
-                  <label>Metronome</label>
-                  <div className="meter-controls compact">
-                    <input
-                      id="bpm"
-                      type="number"
-                      min="40"
-                      max="220"
-                      value={bpm}
-                      onChange={(event) => setBpm(parseInt(event.target.value || '0', 10))}
-                    />
-                    <select
-                      id="time-signature"
-                      value={timeSignature}
-                      onChange={(event) => setTimeSignature(parseInt(event.target.value, 10))}
-                    >
-                      <option value={4}>4/4</option>
-                      <option value={3}>3/4</option>
-                      <option value={6}>6/8</option>
-                    </select>
-                    <button
-                      id="metronome-toggle"
-                      className="accent"
-                      onClick={() => setMetronomeOn((prev) => !prev)}
-                    >
-                      {metronomeOn ? 'Stop' : 'Start'}
-                    </button>
-                    <div id="metronome-pulse" className={`pulse ${pulse ? 'active' : ''}`}></div>
-                  </div>
+                  <label>Auto Scroll</label>
+                  <input
+                    id="scroll-speed"
+                    type="range"
+                    min="0"
+                    max="140"
+                    step="5"
+                    value={scrollSpeed}
+                    onChange={(event) => setScrollSpeed(parseFloat(event.target.value))}
+                  />
                 </div>
+              )}
+              {viewMode === 'single' && (
                 <div className="control-group">
                   <label>Auto Page Turn</label>
                   <div className="page-controls inline">
@@ -766,7 +1022,21 @@ export default function App() {
                     <span id="page-delay-value">{pageDelay}s</span>
                   </div>
                 </div>
-              </div>
+              )}
+              <button
+                type="button"
+                className="metronome-launch"
+                onClick={handleOpenMetronome}
+                aria-label="Open metronome"
+                title="Open metronome"
+              >
+                <img
+                  className="metronome-launch-icon"
+                  src={metronomeIcon}
+                  alt=""
+                  aria-hidden="true"
+                />
+              </button>
             </div>
           </div>
 
@@ -852,7 +1122,7 @@ export default function App() {
                   </button>
                 </div>
               )}
-              <div className="page-stack">
+              <div className="page-stack" style={{ '--pages-per-view': clampedPagesPerView }}>
                 {selectedDoc && pdfDoc && Array.from({ length: pageCount }).map((_, index) => (
                   <div className="page-shell" key={`${selectedDoc.id}-${index}`}>
                     <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} />
@@ -867,7 +1137,7 @@ export default function App() {
             >
               <button
                 className="nav nav-prev"
-                onClick={() => setSinglePageIndex(Math.max(singlePageIndex - 1, 0))}
+                onClick={() => setSinglePageIndex((prev) => Math.max(prev - clampedPagesPerView, 0))}
                 disabled={isPrevDisabled}
                 aria-label="Previous page"
                 title="Previous page"
@@ -885,17 +1155,45 @@ export default function App() {
                 onDoubleClick={handleDoubleClick}
                 onWheel={handleWheelZoom}
               >
-                {selectedDoc && pdfDoc ? (
-                  <div className="page-shell">
-                    <PageCanvas pdfDoc={pdfDoc} pageIndex={singlePageIndex} zoom={zoom * fitScale} />
+                {pageLoading && <div className="empty">Rendering pages...</div>}
+                {pdfError && <div className="empty">Failed to load PDF: {pdfError}</div>}
+                {!pageLoading && !selectedDoc && (
+                  <div className="empty-state">
+                    <div className="empty-icon">
+                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 12h6" />
+                        <path d="M12 9v6" />
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                      </svg>
+                    </div>
+                    <h3 className="empty-title">No Score Selected</h3>
+                    <p className="empty-desc">Choose a score from the library or import new files</p>
+                    <button className="empty-btn" onClick={handleImport}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                      Import PDF
+                    </button>
                   </div>
-                ) : (
-                  <div className="page-placeholder" />
+                )}
+                {!pageLoading && selectedDoc && pdfDoc && (
+                  <div className="page-stack single-stack" style={{ '--pages-per-view': clampedPagesPerView }}>
+                    {singlePageIndices.map((index) => (
+                      <div className="page-shell" key={`${selectedDoc.id}-${index}`}>
+                        <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} />
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
               <button
                 className="nav nav-next"
-                onClick={() => setSinglePageIndex(Math.min(singlePageIndex + 1, pageCount - 1))}
+                onClick={() =>
+                  setSinglePageIndex((prev) => Math.min(prev + clampedPagesPerView, maxStartIndex))
+                }
                 disabled={isNextDisabled}
                 aria-label="Next page"
                 title="Next page"
@@ -914,3 +1212,10 @@ export default function App() {
     </div>
   );
 }
+
+function AppRoot() {
+  const view = getAppView();
+  return view === 'metronome' ? <MetronomeWindow /> : <MainApp />;
+}
+
+export default AppRoot;

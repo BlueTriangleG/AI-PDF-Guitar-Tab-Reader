@@ -23,7 +23,8 @@ contextBridge.exposeInMainWorld('api', {
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value)
   },
   window: {
-    setTrafficLights: (visible) => ipcRenderer.invoke('window:setTrafficLights', visible)
+    setTrafficLights: (visible) => ipcRenderer.invoke('window:setTrafficLights', visible),
+    openMetronome: () => ipcRenderer.invoke('window:openMetronome')
   },
   fileUrlFromPath: (filePath) => pathToFileURL(filePath).toString(),
   onLibraryChanged: (callback) => {

@@ -332,7 +332,7 @@ button.accent {
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  padding: 18px 22px;
+  padding: 18px 90px 18px 22px;
   border-radius: 0;
   border: none;
   border-bottom: 1px solid rgba(28, 24, 20, 0.1);
@@ -362,11 +362,41 @@ button.accent {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
-  padding: 10px 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(28, 24, 20, 0.08);
-  background: rgba(255, 255, 255, 0.7);
+  padding: 4px 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
   -webkit-app-region: no-drag;
+}
+
+.metronome-launch {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 16px;
+  right: 22px;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  color: inherit;
+  margin-left: auto;
+  box-shadow: 0 8px 14px rgba(28, 24, 20, 0.12);
+}
+
+.metronome-launch:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 16px rgba(28, 24, 20, 0.16);
+}
+
+.metronome-launch-icon {
+  width: 28px;
+  height: 28px;
+  display: block;
+  object-fit: contain;
 }
 
 .control-group {
@@ -386,33 +416,285 @@ button.accent {
   font-size: 10px;
 }
 
+.segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.segmented button {
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.segmented button:hover {
+  background: rgba(31, 27, 22, 0.08);
+  box-shadow: none;
+  transform: none;
+}
+
+.segmented button.active {
+  background: rgba(31, 27, 22, 0.16);
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .control-group select,
 .control-group input[type="range"] {
   width: 140px;
 }
 
-.toolbar-practice {
+.metronome-window {
+  min-height: 100vh;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 24px 26px 32px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(46, 106, 98, 0.22), transparent 50%),
+    radial-gradient(circle at 88% 8%, rgba(195, 104, 60, 0.2), transparent 45%),
+    linear-gradient(135deg, rgba(255, 250, 240, 0.98), rgba(238, 229, 212, 0.95));
+}
+
+.metronome-window::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 140px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.metronome-window > * {
+  position: relative;
+  z-index: 1;
+}
+
+.metronome-drag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  z-index: 3;
+  -webkit-app-region: drag;
+}
+
+.metronome-head {
   display: flex;
-  gap: 12px;
   align-items: center;
-  flex-wrap: wrap;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.85);
+  justify-content: space-between;
+  gap: 16px;
+  -webkit-app-region: drag;
+  min-height: 76px;
+  padding-top: 22px;
+  padding-bottom: 10px;
+}
+
+.metronome-head * {
   -webkit-app-region: no-drag;
 }
 
-.meter-controls.compact {
+.metronome-window.running .metronome-toggle {
+  box-shadow: 0 12px 20px rgba(195, 104, 60, 0.28);
+}
+
+.metronome-title-block {
+  display: grid;
+  gap: 4px;
+}
+
+.metronome-title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  letter-spacing: 0.2px;
+  color: var(--ink);
+}
+
+.metronome-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+  max-width: 320px;
+}
+
+.metronome-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 10px 16px rgba(28, 24, 20, 0.16);
+}
+
+.metronome-toggle.active {
+  background: var(--accent);
+  box-shadow: 0 10px 18px rgba(195, 104, 60, 0.28);
+}
+
+.toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 0 rgba(195, 104, 60, 0.4);
+}
+
+.toggle-dot.active {
+  animation: pulse 0.3s ease;
+}
+
+.metronome-main {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(180px, 1fr);
+  gap: 16px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(28, 24, 20, 0.1);
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 14px 20px rgba(28, 24, 20, 0.08);
+}
+
+.metronome-tempo {
+  display: grid;
+  gap: 6px;
+}
+
+.metronome-tempo label {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.bpm-row {
   display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.bpm-row input {
+  width: 110px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.bpm-unit {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+}
+
+.bpm-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.metronome-beats {
+  display: grid;
   gap: 8px;
   align-items: center;
 }
 
-.meter-controls.compact input,
-.meter-controls.compact select {
-  width: 64px;
+.beat-ring {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.beat-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(31, 27, 22, 0.12);
+  border: 1px solid rgba(31, 27, 22, 0.16);
+}
+
+.beat-dot.downbeat {
+  border-color: var(--accent-cool);
+}
+
+.beat-dot.active {
+  background: var(--accent);
+  border-color: transparent;
+  animation: pulse 0.3s ease;
+}
+
+.beat-ring.count-in .beat-dot.active {
+  background: var(--accent-cool);
+}
+
+.beat-readout {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.metronome-settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(28, 24, 20, 0.1);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.metronome-settings .setting {
+  display: grid;
+  gap: 6px;
+}
+
+.metronome-settings label {
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.metronome-settings select {
   padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.metronome-footer {
+  display: flex;
+  justify-content: center;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+  padding-top: 4px;
+}
+
+.metronome-hint {
+  opacity: 0.8;
 }
 
 .page-controls.inline {
@@ -453,9 +735,11 @@ button.accent {
 }
 
 .page-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  --pages-per-view: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--pages-per-view), max-content);
+  grid-auto-flow: row;
+  gap: 12px;
   width: max-content;
 }
 
@@ -526,14 +810,13 @@ button.accent {
 .single-page {
   position: absolute;
   inset: 0;
-  display: grid;
-  grid-template-columns: 72px 1fr 72px;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
+  display: block;
 }
 
 .single-container {
+  position: absolute;
+  inset: 0;
+  padding: 14px;
   height: 100%;
   overflow-x: auto;
   overflow-y: auto;
@@ -545,6 +828,7 @@ button.accent {
   cursor: grab;
   overscroll-behavior: contain;
   background: var(--paper);
+  z-index: 1;
 }
 
 .single-container.centered {
@@ -560,43 +844,47 @@ button.accent {
 }
 
 .single-page .nav {
-  height: 52px;
-  width: 52px;
-  justify-self: center;
+  position: absolute;
+  top: 50%;
+  height: 44px;
+  width: 44px;
   border-radius: 14px;
-  background: rgba(31, 27, 22, 0.12);
+  background: linear-gradient(155deg, rgba(31, 27, 22, 0.22), rgba(31, 27, 22, 0.12));
   color: var(--ink);
   padding: 0;
   display: grid;
   place-items: center;
   opacity: 0;
   pointer-events: none;
-  box-shadow: 0 8px 16px rgba(28, 24, 20, 0.08);
-  transform: scale(0.96);
+  box-shadow: 0 10px 18px rgba(28, 24, 20, 0.14), inset 0 0 0 1px rgba(31, 27, 22, 0.22);
+  z-index: 2;
+  transform: translateY(-50%) scale(0.96);
   transition: opacity 0.25s ease, transform 0.25s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .single-page .nav.nav-prev {
-  transform: translateX(6px) scale(0.96);
+  left: 14px;
+  transform: translate(-6px, -50%) scale(0.96);
 }
 
 .single-page .nav.nav-next {
-  transform: translateX(-6px) scale(0.96);
+  right: 14px;
+  transform: translate(6px, -50%) scale(0.96);
 }
 
 .single-page.nav-visible .nav {
   opacity: 1;
   pointer-events: auto;
-  transform: translateX(0) scale(1);
+  transform: translate(0, -50%) scale(1);
 }
 
 .single-page.nav-visible .nav.nav-prev,
 .single-page.nav-visible .nav.nav-next {
-  transform: translateX(0) scale(1);
+  transform: translate(0, -50%) scale(1);
 }
 
 .single-page .nav:hover {
-  background: rgba(31, 27, 22, 0.2);
+  background: linear-gradient(155deg, rgba(31, 27, 22, 0.28), rgba(31, 27, 22, 0.16));
   box-shadow: 0 10px 18px rgba(28, 24, 20, 0.14);
 }
 
@@ -659,19 +947,6 @@ button.accent {
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--border);
-}
-
-.pulse {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.3;
-  box-shadow: 0 0 0 rgba(195, 104, 60, 0.4);
-}
-
-.pulse.active {
-  animation: pulse 0.3s ease;
 }
 
 .page-controls {
@@ -793,6 +1068,16 @@ button.accent {
   }
 }
 
+@media (max-width: 1100px) {
+  .metronome-main {
+    grid-template-columns: 1fr;
+  }
+
+  .metronome-settings {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1200px) {
   .layout {
     grid-template-columns: 1fr;
@@ -832,6 +1117,12 @@ button.accent {
 #app.focus-mode.toolbar-hover .reader-toolbar {
   transform: translateY(0);
   opacity: 1;
+}
+
+#app.focus-mode .single-container {
+  align-items: center;
+  padding-top: 64px;
+  padding-bottom: 56px;
 }
 
 /* Stage controls - floating buttons in reader-stage */

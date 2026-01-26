@@ -1,7 +1,7 @@
 const { ipcMain, dialog } = require('electron');
 const fs = require('fs/promises');
 
-function registerIpcHandlers({ window, services }) {
+function registerIpcHandlers({ window, services, onOpenMetronomeWindow }) {
   const { library, pdfService } = services;
 
   ipcMain.handle('library:list', async () => library.listDocuments());
@@ -58,6 +58,13 @@ function registerIpcHandlers({ window, services }) {
   ipcMain.handle('window:setTrafficLights', async (_event, visible) => {
     if (process.platform === 'darwin' && window.setWindowButtonVisibility) {
       window.setWindowButtonVisibility(visible);
+    }
+    return true;
+  });
+
+  ipcMain.handle('window:openMetronome', async () => {
+    if (onOpenMetronomeWindow) {
+      onOpenMetronomeWindow();
     }
     return true;
   });
