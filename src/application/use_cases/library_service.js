@@ -188,6 +188,58 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     libraryRepo.deleteByPath(filePath);
   }
 
+  async function deleteDocument(docId, alsoDeleteFile = false) {
+    const doc = libraryRepo.getDocumentById(docId);
+    if (!doc) return false;
+
+    if (alsoDeleteFile && doc.file_path) {
+      try {
+        await fs.promises.unlink(doc.file_path);
+      } catch (error) {
+        // File might already be deleted or inaccessible
+      }
+    }
+
+    libraryRepo.deleteById(docId);
+    emitter.emit('changed');
+    return true;
+  }
+
+  async function deleteDocuments(docIds, alsoDeleteFiles = false) {
+    for (const docId of docIds) {
+      await deleteDocument(docId, alsoDeleteFiles);
+    }
+    return true;
+  }
+
+  async function deleteFolder(folderPath) {
+    // Check if it's a linked source
+    const isLinked = linkedSources.some((s) => s.path === folderPath);
+    if (isLinked) {
+      await removeLinkedSource(folderPath);
+      return { unlinked: true };
+    }
+
+    // For internal folders, delete the actual folder and its contents
+    if (folderPath && isUnderRoot(folderPath, internalRoot)) {
+      try {
+        await fs.promises.rm(folderPath, { recursive: true, force: true });
+        // Remove documents from database that were in this folder
+        const prefix = normalizeRoot(folderPath);
+        const docs = libraryRepo.listDocumentsByPrefix(`${prefix}%`);
+        for (const doc of docs) {
+          libraryRepo.deleteById(doc.id);
+        }
+        emitter.emit('changed');
+        return { deleted: true };
+      } catch (error) {
+        return { error: error.message };
+      }
+    }
+
+    return { error: 'Cannot delete this folder' };
+  }
+
   function startWatchers() {
     const roots = getAllRoots();
     for (const [root, active] of activeWatchers.entries()) {
@@ -279,6 +331,9 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     listDocuments,
     listRecentDocuments,
     listDocumentsBySource,
+    deleteDocument,
+    deleteDocuments,
+    deleteFolder,
     getSetting,
     setSetting,
     saveReadingState,

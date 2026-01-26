@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const { pathToFileURL } = require('url');
 
 contextBridge.exposeInMainWorld('api', {
@@ -14,7 +14,12 @@ contextBridge.exposeInMainWorld('api', {
     listFolders: (parentPath) => ipcRenderer.invoke('library:listFolders', parentPath),
     createFolder: (name, parentPath) => ipcRenderer.invoke('library:createFolder', name, parentPath),
     linkFolder: () => ipcRenderer.invoke('library:linkFolder'),
+    linkFolderPath: (folderPath) => ipcRenderer.invoke('library:linkFolderPath', folderPath),
     unlinkFolder: (folderPath) => ipcRenderer.invoke('library:unlinkFolder', folderPath),
+    deleteDocuments: (docIds, alsoDeleteFiles) => ipcRenderer.invoke('library:deleteDocuments', docIds, alsoDeleteFiles),
+    deleteFolder: (folderPath) => ipcRenderer.invoke('library:deleteFolder', folderPath),
+    importFilesTo: (filePaths, targetFolder) => ipcRenderer.invoke('library:importFilesTo', filePaths, targetFolder),
+    handleDroppedPaths: (paths, targetFolder) => ipcRenderer.invoke('library:handleDroppedPaths', paths, targetFolder),
     openDocument: (docId) => ipcRenderer.invoke('library:openDocument', docId)
   },
   pdf: {
@@ -35,6 +40,7 @@ contextBridge.exposeInMainWorld('api', {
     openMetronome: () => ipcRenderer.invoke('window:openMetronome')
   },
   fileUrlFromPath: (filePath) => pathToFileURL(filePath).toString(),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   onLibraryChanged: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('library:changed', handler);

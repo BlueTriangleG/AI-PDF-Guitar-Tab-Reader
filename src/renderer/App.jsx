@@ -500,6 +500,36 @@ function LibraryWindow() {
   const [viewMode, setViewMode] = useState('grid');
   const [sidebarFolders, setSidebarFolders] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(false);
+  const [sidebarSearch, setSidebarSearch] = useState('');
+  const [selectedDocs, setSelectedDocs] = useState(new Set());
+  const [selectedFolders, setSelectedFolders] = useState(new Set());
+  const [lastSelectedDoc, setLastSelectedDoc] = useState(null);
+  const [lastSelectedFolder, setLastSelectedFolder] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [newFolderPopup, setNewFolderPopup] = useState(false);
+  const [newFolderInput, setNewFolderInput] = useState('');
+  const newFolderInputRef = useRef(null);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  const openNewFolderPopup = useCallback(() => {
+    setNewFolderInput('');
+    setNewFolderPopup(true);
+  }, []);
+
+  const closeNewFolderPopup = useCallback(() => {
+    setNewFolderPopup(false);
+    setNewFolderInput('');
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedDocs(new Set());
+    setSelectedFolders(new Set());
+    setLastSelectedDoc(null);
+    setLastSelectedFolder(null);
+  }, []);
 
   const refreshSources = useCallback(async () => {
     if (!api?.library) return;
@@ -659,7 +689,22 @@ function LibraryWindow() {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [currentDocs]);
 
-  const totalItemCount = folderItems.length + docItems.length;
+  const searchTerm = sidebarSearch.trim().toLowerCase();
+  const filteredFolderItems = useMemo(() => {
+    if (!searchTerm) return folderItems;
+    return folderItems.filter((item) => item.label.toLowerCase().includes(searchTerm));
+  }, [folderItems, searchTerm]);
+
+  const filteredDocItems = useMemo(() => {
+    if (!searchTerm) return docItems;
+    return docItems.filter((item) => {
+      const title = (item.doc.title || '').toLowerCase();
+      const filename = basenameForPath(item.doc.file_path).toLowerCase();
+      return title.includes(searchTerm) || filename.includes(searchTerm);
+    });
+  }, [docItems, searchTerm]);
+
+  const totalItemCount = filteredFolderItems.length + filteredDocItems.length;
 
   const positionText = useMemo(() => {
     if (selectedView === ROOT_VIEW) return 'My Library';
@@ -693,6 +738,64 @@ function LibraryWindow() {
     setSelectedView(ROOT_VIEW);
     await refreshSources();
   }, [api, refreshSources]);
+
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+
+    if (!api?.library || !api?.getPathForFile) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length) return;
+
+    // Use Electron's webUtils to get file paths (required with contextIsolation)
+    const paths = files.map((f) => api.getPathForFile(f)).filter(Boolean);
+    if (!paths.length) return;
+
+    // Determine target folder for imports
+    const targetFolder = selectedView === ROOT_VIEW ? internalRoot : selectedView;
+    const importTarget = targetFolder && internalRoot && targetFolder.startsWith(internalRoot)
+      ? targetFolder
+      : internalRoot;
+
+    // Let main process handle path classification and operations
+    const result = await api.library.handleDroppedPaths(paths, importTarget);
+
+    // Navigate to the first linked folder if any
+    if (result.folders && result.folders.length > 0) {
+      setSelectedView(result.folders[0]);
+    }
+
+    await refreshSources();
+  }, [api, refreshSources, selectedView, internalRoot]);
 
   const handleCreateFolder = useCallback(async (event) => {
     event.preventDefault();
@@ -739,6 +842,146 @@ function LibraryWindow() {
     setSelectedView(parent);
   }, [canGoBack, currentRoot, selectedView, internalRoot]);
 
+  const handleSelectDoc = useCallback((doc, event) => {
+    const docId = doc.id;
+    const isShift = event?.shiftKey;
+    const isMeta = event?.metaKey || event?.ctrlKey;
+
+    setSelectedFolders(new Set());
+    setLastSelectedFolder(null);
+
+    if (isShift && lastSelectedDoc && filteredDocItems.length > 0) {
+      const docIdList = filteredDocItems.map((d) => d.doc.id);
+      const lastIdx = docIdList.indexOf(lastSelectedDoc);
+      const currentIdx = docIdList.indexOf(docId);
+      if (lastIdx !== -1 && currentIdx !== -1) {
+        const start = Math.min(lastIdx, currentIdx);
+        const end = Math.max(lastIdx, currentIdx);
+        const range = docIdList.slice(start, end + 1);
+        setSelectedDocs((prev) => new Set([...prev, ...range]));
+        return;
+      }
+    }
+
+    if (isMeta) {
+      setSelectedDocs((prev) => {
+        const next = new Set(prev);
+        if (next.has(docId)) {
+          next.delete(docId);
+        } else {
+          next.add(docId);
+        }
+        return next;
+      });
+    } else {
+      setSelectedDocs(new Set([docId]));
+    }
+    setLastSelectedDoc(docId);
+  }, [lastSelectedDoc, filteredDocItems]);
+
+  const handleSelectFolder = useCallback((folderPath, event) => {
+    const isShift = event?.shiftKey;
+    const isMeta = event?.metaKey || event?.ctrlKey;
+
+    setSelectedDocs(new Set());
+    setLastSelectedDoc(null);
+
+    if (isShift && lastSelectedFolder && filteredFolderItems.length > 0) {
+      const folderPathList = filteredFolderItems.map((f) => f.path);
+      const lastIdx = folderPathList.indexOf(lastSelectedFolder);
+      const currentIdx = folderPathList.indexOf(folderPath);
+      if (lastIdx !== -1 && currentIdx !== -1) {
+        const start = Math.min(lastIdx, currentIdx);
+        const end = Math.max(lastIdx, currentIdx);
+        const range = folderPathList.slice(start, end + 1);
+        setSelectedFolders((prev) => new Set([...prev, ...range]));
+        return;
+      }
+    }
+
+    if (isMeta) {
+      setSelectedFolders((prev) => {
+        const next = new Set(prev);
+        if (next.has(folderPath)) {
+          next.delete(folderPath);
+        } else {
+          next.add(folderPath);
+        }
+        return next;
+      });
+    } else {
+      setSelectedFolders(new Set([folderPath]));
+    }
+    setLastSelectedFolder(folderPath);
+  }, [lastSelectedFolder, filteredFolderItems]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (!api?.library) return;
+
+    const docCount = selectedDocs.size;
+    const folderCount = selectedFolders.size;
+
+    if (docCount === 0 && folderCount === 0) return;
+
+    const parts = [];
+    if (docCount > 0) parts.push(`${docCount} score${docCount > 1 ? 's' : ''}`);
+    if (folderCount > 0) parts.push(`${folderCount} folder${folderCount > 1 ? 's' : ''}`);
+
+    const confirmed = window.confirm(`Delete ${parts.join(' and ')}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    // Delete documents
+    if (docCount > 0) {
+      await api.library.deleteDocuments(Array.from(selectedDocs), true);
+    }
+
+    // Delete folders
+    for (const folderPath of selectedFolders) {
+      await api.library.deleteFolder(folderPath);
+    }
+
+    clearSelection();
+    await refreshSources();
+    await refreshSubfolders(selectedView);
+  }, [api, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView]);
+
+  const handleContextMenuAction = useCallback(async (action) => {
+    if (!api?.library) return;
+
+    const menuData = contextMenu;
+    closeContextMenu();
+
+    if (!menuData) return;
+
+    if (action === 'delete' && menuData.type === 'folder') {
+      const confirmed = window.confirm(`Delete "${menuData.label}"? This cannot be undone.`);
+      if (confirmed) {
+        await api.library.deleteFolder(menuData.target);
+        clearSelection();
+        await refreshSources();
+        await refreshSubfolders(selectedView);
+      }
+    } else if (action === 'newFolder') {
+      openNewFolderPopup();
+    }
+  }, [api, contextMenu, clearSelection, refreshSources, refreshSubfolders, selectedView, closeContextMenu, openNewFolderPopup]);
+
+  const handleCreateNewFolder = useCallback(async () => {
+    if (!api?.library) return;
+    const name = newFolderInput.trim();
+    if (!name) return;
+
+    const parentPath = selectedView === ROOT_VIEW ? (internalRoot || null) : selectedView;
+    const created = await api.library.createFolder(name, parentPath);
+    closeNewFolderPopup();
+    await refreshSources();
+    await refreshSubfolders(selectedView);
+    if (created) setSelectedView(created);
+  }, [api, newFolderInput, selectedView, internalRoot, closeNewFolderPopup, refreshSources, refreshSubfolders]);
+
+  const hasSelection = selectedDocs.size > 0 || selectedFolders.size > 0;
+  const selectionCount = selectedDocs.size + selectedFolders.size;
+
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
     const offImport = api.onMenuImportPdf(() => handleImportFiles());
@@ -749,13 +992,82 @@ function LibraryWindow() {
     };
   }, [handleImportFiles, handleAddFolder]);
 
+  // Clear selection when navigating to different view
+  useEffect(() => {
+    clearSelection();
+  }, [selectedView, clearSelection]);
+
+  // Keyboard shortcuts for selection
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (contextMenu) {
+          closeContextMenu();
+        } else {
+          clearSelection();
+        }
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && hasSelection) {
+        e.preventDefault();
+        handleDeleteSelected();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+        e.preventDefault();
+        // Select all in current view
+        const allDocIds = filteredDocItems.map((d) => d.doc.id);
+        const allFolderPaths = filteredFolderItems.map((f) => f.path);
+        setSelectedDocs(new Set(allDocIds));
+        setSelectedFolders(new Set(allFolderPaths));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [clearSelection, hasSelection, handleDeleteSelected, filteredDocItems, filteredFolderItems, contextMenu, closeContextMenu]);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+    const handleClick = (e) => {
+      // Don't close if clicking inside context menu
+      if (e.target.closest('.context-menu')) return;
+      closeContextMenu();
+    };
+    // Use mousedown instead of click to close before other handlers
+    window.addEventListener('mousedown', handleClick);
+    return () => window.removeEventListener('mousedown', handleClick);
+  }, [contextMenu, closeContextMenu]);
+
   const activeLabel = useMemo(() => {
     if (selectedView === ROOT_VIEW) return 'My Library';
     return basenameForPath(selectedView);
   }, [selectedView]);
 
   return (
-    <div className="library-window">
+    <div
+      className={`library-window ${isDragging ? 'dragging' : ''} ${hasSelection ? 'selecting' : ''}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="drop-overlay">
+          <div className="drop-zone">
+            <div className="drop-icon">
+              <svg viewBox="0 0 48 48" width="64" height="64">
+                <path
+                  d="M24 4v28m0 0l-10-10m10 10l10-10M8 40h32"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <div className="drop-title">Drop to Add</div>
+            <div className="drop-hint">Drop folders to link them, or PDFs to import</div>
+          </div>
+        </div>
+      )}
       <header className="library-header">
         <div className="library-title-block">
           <div className="library-title">Library</div>
@@ -773,30 +1085,14 @@ function LibraryWindow() {
       <div className="library-body">
         <aside className="library-sidebar">
           <div className="library-section">
-            <div className="section-title">Position</div>
-            <div className="position-display">{positionText}</div>
-          </div>
-          <div className="library-section">
-            <div className="section-title">History</div>
-            <div className="recent-list">
-              {recentDocs.map((doc) => (
-                <button
-                  key={doc.id}
-                  type="button"
-                  className={`recent-item ${activeDocId === doc.id ? 'active' : ''}`}
-                  onClick={() => handleOpenDoc(doc)}
-                >
-                  <span className="recent-title">{doc.title || 'Untitled'}</span>
-                  <span className="recent-meta">{basenameForPath(doc.file_path)}</span>
-                </button>
-              ))}
-              {!recentDocs.length && (
-                <div className="source-empty">No recent scores yet</div>
-              )}
-            </div>
-          </div>
-          <div className="library-section">
             <div className="section-title">Folders</div>
+            <input
+              type="search"
+              className="library-search"
+              placeholder="Search library"
+              value={sidebarSearch}
+              onChange={(event) => setSidebarSearch(event.target.value)}
+            />
             <div className="folder-list">
               {sidebarFolders.map((folder) => (
                 <button
@@ -822,8 +1118,46 @@ function LibraryWindow() {
               <button type="submit">Create</button>
             </form>
           </div>
+          <div className="library-section">
+            <div className="section-title">Position</div>
+            <div className="position-display">{positionText}</div>
+          </div>
+          <div className="library-section">
+            <div className="section-title">History</div>
+            <div className="recent-list">
+              {recentDocs.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  className={`recent-item ${activeDocId === doc.id ? 'active' : ''}`}
+                  onClick={() => handleOpenDoc(doc)}
+                >
+                  <span className="recent-title">{doc.title || 'Untitled'}</span>
+                  <span className="recent-meta">{basenameForPath(doc.file_path)}</span>
+                </button>
+              ))}
+              {!recentDocs.length && (
+                <div className="source-empty">No recent scores yet</div>
+              )}
+            </div>
+          </div>
         </aside>
-        <section className="library-content">
+        <section
+          className="library-content"
+          onContextMenu={(e) => {
+            if (e.target === e.currentTarget || e.target.closest('.content-section')) {
+              if (!e.target.closest('.folder-entry') && !e.target.closest('.item-card')) {
+                e.preventDefault();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  type: 'blank',
+                  target: null
+                });
+              }
+            }
+          }}
+        >
           <div className="library-content-head">
             <div className="content-title-row">
               <div className="content-title-main">
@@ -837,6 +1171,17 @@ function LibraryWindow() {
                 <div className="content-title">{activeLabel}</div>
               </div>
               <div className="content-tools">
+                {hasSelection && (
+                  <div className="selection-actions">
+                    <span className="selection-count">{selectionCount} selected</span>
+                    <button type="button" className="ghost" onClick={clearSelection}>
+                      Cancel
+                    </button>
+                    <button type="button" className="danger" onClick={handleDeleteSelected}>
+                      Delete
+                    </button>
+                  </div>
+                )}
                 <div className="view-toggle" role="group" aria-label="View mode">
                   <button
                     type="button"
@@ -866,33 +1211,75 @@ function LibraryWindow() {
               <div className="content-section folders">
                 <div className="content-section-title">Folders</div>
                 <div className={`library-items ${viewMode}`}>
-                  {folderItems.map((folder) => (
-                    <div key={folder.path} className="folder-entry">
-                      <button
-                        type="button"
-                        className="folder-button"
-                        onClick={() => setSelectedView(folder.path)}
-                        aria-label={`Open ${folder.label}`}
-                      >
+                  {filteredFolderItems.map((folder) => (
+                    <div
+                      key={folder.path}
+                      className={`folder-entry ${selectedFolders.has(folder.path) ? 'selected' : ''}`}
+                      onClick={(e) => {
+                        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                          handleSelectFolder(folder.path, e);
+                        } else if (selectedFolders.size > 0 || selectedDocs.size > 0) {
+                          handleSelectFolder(folder.path, e);
+                        } else {
+                          setSelectedView(folder.path);
+                        }
+                      }}
+                      onDoubleClick={() => setSelectedView(folder.path)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          type: 'folder',
+                          target: folder.path,
+                          label: folder.label
+                        });
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedView(folder.path);
+                        }
+                      }}
+                    >
+                      <div className="folder-icon-wrap">
                         <div className="item-icon folder" aria-hidden="true" />
-                      </button>
+                      </div>
                       <div className="item-title">{folder.label}</div>
                     </div>
                   ))}
                 </div>
-                {!folderItems.length && (
+                {!filteredFolderItems.length && (
                   <div className="empty">No folders here yet.</div>
                 )}
               </div>
               <div className="content-section scores">
                 <div className="content-section-title">Scores</div>
                 <div className={`library-items ${viewMode}`}>
-                  {docItems.map((item) => (
+                  {filteredDocItems.map((item) => (
                     <button
                       key={item.doc.id}
                       type="button"
-                      className={`item-card doc-item ${activeDocId === item.doc.id ? 'active' : ''}`}
-                      onClick={() => handleOpenDoc(item.doc)}
+                      className={`item-card doc-item ${activeDocId === item.doc.id ? 'active' : ''} ${selectedDocs.has(item.doc.id) ? 'selected' : ''}`}
+                      onClick={(e) => {
+                        if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                          handleSelectDoc(item.doc, e);
+                        } else if (selectedDocs.size > 0 || selectedFolders.size > 0) {
+                          handleSelectDoc(item.doc, e);
+                        } else {
+                          handleOpenDoc(item.doc);
+                        }
+                      }}
+                      onDoubleClick={() => handleOpenDoc(item.doc)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (!selectedDocs.has(item.doc.id)) {
+                          handleSelectDoc(item.doc, e);
+                        }
+                      }}
                     >
                       <DocPreview filePath={item.doc.file_path} label={item.doc.title || 'Preview'} />
                       <div className="item-title">{item.doc.title || 'Untitled'}</div>
@@ -902,7 +1289,7 @@ function LibraryWindow() {
                     </button>
                   ))}
                 </div>
-                {!docItems.length && (
+                {!filteredDocItems.length && (
                   <div className="empty">No scores here yet.</div>
                 )}
               </div>
@@ -910,6 +1297,60 @@ function LibraryWindow() {
           )}
         </section>
       </div>
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.type === 'blank' && (
+            <button
+              type="button"
+              className="context-menu-item"
+              onClick={() => handleContextMenuAction('newFolder')}
+            >
+              New Folder
+            </button>
+          )}
+          {contextMenu.type === 'folder' && (
+            <button
+              type="button"
+              className="context-menu-item danger"
+              onClick={() => handleContextMenuAction('delete')}
+            >
+              Delete "{contextMenu.label}"
+            </button>
+          )}
+        </div>
+      )}
+      {newFolderPopup && (
+        <div className="popup-overlay" onClick={closeNewFolderPopup}>
+          <div className="popup-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="popup-title">New Folder</div>
+            <input
+              ref={newFolderInputRef}
+              type="text"
+              className="popup-input"
+              placeholder="Folder name"
+              value={newFolderInput}
+              onChange={(e) => setNewFolderInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateNewFolder();
+                if (e.key === 'Escape') closeNewFolderPopup();
+              }}
+              autoFocus
+            />
+            <div className="popup-actions">
+              <button type="button" className="ghost" onClick={closeNewFolderPopup}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleCreateNewFolder}>
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1403,11 +1844,38 @@ function MainApp() {
     }
   }, [pageCount, clampedPagesPerView, singlePageIndex, setSinglePageIndex]);
 
+  // Get current folder path from selected document
+  const currentFolderPath = useMemo(() => {
+    if (!selectedDoc?.file_path) return null;
+    return getParentDir(selectedDoc.file_path);
+  }, [selectedDoc]);
+
+  // Filter documents to show only those in the same folder as selected doc
   const filteredDocuments = useMemo(() => {
+    let docs = documents;
+
+    // If a document is selected, only show documents from the same folder
+    if (currentFolderPath) {
+      docs = documents.filter((doc) => {
+        const docFolder = getParentDir(doc.file_path);
+        return docFolder === currentFolderPath;
+      });
+    }
+
+    // Apply search filter
     const term = search.trim().toLowerCase();
-    if (!term) return documents;
-    return documents.filter((doc) => (doc.title || '').toLowerCase().includes(term));
-  }, [documents, search]);
+    if (term) {
+      docs = docs.filter((doc) => (doc.title || '').toLowerCase().includes(term));
+    }
+
+    return docs;
+  }, [documents, search, currentFolderPath]);
+
+  // Get current folder name for display
+  const currentFolderName = useMemo(() => {
+    if (!currentFolderPath) return 'Library';
+    return basenameForPath(currentFolderPath);
+  }, [currentFolderPath]);
 
   const sidebarVisible = sidebarPinned || sidebarHover;
   const maxStartIndex = Math.max(pageCount - clampedPagesPerView, 0);
@@ -1446,7 +1914,7 @@ function MainApp() {
           <div className="library-drag" aria-hidden="true" />
           <div className="library-head">
             <div className="library-actions">
-              <span className="library-title">Library</span>
+              <span className="library-title">{currentFolderName}</span>
               <button
                 className={`pin-toggle ${sidebarPinned ? 'active' : ''}`}
                 onClick={toggleSidebarPinned}
@@ -1465,7 +1933,6 @@ function MainApp() {
             />
             <div className="library-meta">
               <span id="library-count">{formatCount(filteredDocuments.length)}</span>
-              <span id="library-root" className="library-root">{libraryRoot}</span>
             </div>
           </div>
           <div id="library-list" className="library-list">

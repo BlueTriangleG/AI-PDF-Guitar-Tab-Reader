@@ -1,5 +1,6 @@
 const { BrowserWindow, ipcMain, dialog } = require('electron');
 const fs = require('fs/promises');
+const path = require('path');
 
 function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenReaderWindow }) {
   const { library, pdfService } = services;
@@ -50,9 +51,62 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
     return library.addLinkedSource(result.filePaths[0]);
   });
 
+  ipcMain.handle('library:linkFolderPath', async (_event, folderPath) => {
+    if (!folderPath) return null;
+    return library.addLinkedSource(folderPath);
+  });
+
   ipcMain.handle('library:unlinkFolder', async (_event, folderPath) => {
     await library.removeLinkedSource(folderPath);
     return true;
+  });
+
+  ipcMain.handle('library:deleteDocuments', async (_event, docIds, alsoDeleteFiles) => {
+    return library.deleteDocuments(docIds, alsoDeleteFiles);
+  });
+
+  ipcMain.handle('library:deleteFolder', async (_event, folderPath) => {
+    return library.deleteFolder(folderPath);
+  });
+
+  ipcMain.handle('library:importFilesTo', async (_event, filePaths, targetFolder) => {
+    if (!filePaths || !filePaths.length) return [];
+    return library.importFiles(filePaths, targetFolder);
+  });
+
+  ipcMain.handle('library:handleDroppedPaths', async (_event, paths, targetFolder) => {
+    if (!paths || !paths.length) return { folders: [], files: [] };
+
+    const folders = [];
+    const pdfFiles = [];
+
+    for (const filePath of paths) {
+      try {
+        const stats = await fs.stat(filePath);
+        if (stats.isDirectory()) {
+          folders.push(filePath);
+        } else if (stats.isFile() && path.extname(filePath).toLowerCase() === '.pdf') {
+          pdfFiles.push(filePath);
+        }
+      } catch (error) {
+        // Skip inaccessible paths
+      }
+    }
+
+    // Link folders as sources
+    const linkedFolders = [];
+    for (const folderPath of folders) {
+      const linked = await library.addLinkedSource(folderPath);
+      if (linked) linkedFolders.push(linked);
+    }
+
+    // Import PDF files
+    let importedFiles = [];
+    if (pdfFiles.length > 0) {
+      importedFiles = await library.importFiles(pdfFiles, targetFolder);
+    }
+
+    return { folders: linkedFolders, files: importedFiles };
   });
 
   ipcMain.handle('library:openDocument', async (_event, docId) => {

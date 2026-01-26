@@ -44,6 +44,7 @@ function createLibraryRepository(db) {
   `);
 
   const deleteByPathStmt = db.prepare('DELETE FROM documents WHERE file_path = ?');
+  const deleteByIdStmt = db.prepare('DELETE FROM documents WHERE id = ?');
   const selectPathsStmt = db.prepare('SELECT file_path FROM documents');
   const selectByIdStmt = db.prepare('SELECT * FROM documents WHERE id = ?');
   const updateLastOpenedStmt = db.prepare('UPDATE documents SET last_opened = ? WHERE id = ?');
@@ -93,6 +94,10 @@ function createLibraryRepository(db) {
 
   function deleteByPath(filePath) {
     return deleteByPathStmt.run(filePath);
+  }
+
+  function deleteById(id) {
+    return deleteByIdStmt.run(id);
   }
 
   function pruneMissing(existingPaths) {
@@ -147,6 +152,7 @@ function createLibraryRepository(db) {
     listDocumentsByPrefix,
     upsertDocument,
     deleteByPath,
+    deleteById,
     pruneMissing,
     getDocumentById,
     updateLastOpened,
