@@ -159,6 +159,7 @@ export default function App() {
   const pageBaseRef = useRef({ width: null, height: null });
   const zoomSnapRef = useRef(null);
   const zoomScrollRef = useRef(null);
+  const stageActivityTimer = useRef(null);
   const panState = useRef({
     active: false,
     startX: 0,
@@ -196,6 +197,17 @@ export default function App() {
       setTimeout(() => setPulse(false), 140);
     }
   });
+
+  const activateStage = useCallback(() => {
+    setStageActive(true);
+    if (stageActivityTimer.current) {
+      clearTimeout(stageActivityTimer.current);
+    }
+    stageActivityTimer.current = setTimeout(() => {
+      setStageActive(false);
+      stageActivityTimer.current = null;
+    }, 1000);
+  }, []);
 
   const computeFitScale = useCallback(() => {
     const baseWidth = pageBaseRef.current.width;
@@ -308,6 +320,7 @@ export default function App() {
     const handleScroll = (event) => {
       const target = event.target;
       target.classList.add('is-scrolling');
+      activateStage();
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
         target.classList.remove('is-scrolling');
@@ -325,23 +338,21 @@ export default function App() {
       });
       clearTimeout(scrollTimeout);
     };
-  }, []);
+  }, [activateStage]);
 
   useEffect(() => {
-    let inactivityTimeout;
     const stage = readerStageRef.current;
     if (!stage) return;
 
     const handleMouseMove = () => {
-      setStageActive(true);
-      clearTimeout(inactivityTimeout);
-      inactivityTimeout = setTimeout(() => {
-        setStageActive(false);
-      }, 1000);
+      activateStage();
     };
 
     const handleMouseLeave = () => {
-      clearTimeout(inactivityTimeout);
+      if (stageActivityTimer.current) {
+        clearTimeout(stageActivityTimer.current);
+        stageActivityTimer.current = null;
+      }
       setStageActive(false);
     };
 
@@ -351,9 +362,12 @@ export default function App() {
     return () => {
       stage.removeEventListener('mousemove', handleMouseMove);
       stage.removeEventListener('mouseleave', handleMouseLeave);
-      clearTimeout(inactivityTimeout);
+      if (stageActivityTimer.current) {
+        clearTimeout(stageActivityTimer.current);
+        stageActivityTimer.current = null;
+      }
     };
-  }, []);
+  }, [activateStage]);
 
   const toggleFullscreen = useCallback(() => {
     if (!readerStageRef.current) return;
@@ -595,6 +609,8 @@ export default function App() {
   }, [documents, search]);
 
   const sidebarVisible = sidebarPinned || sidebarHover;
+  const isPrevDisabled = !selectedDoc || singlePageIndex <= 0;
+  const isNextDisabled = !selectedDoc || pageCount === 0 || singlePageIndex >= pageCount - 1;
 
   return (
     <div
@@ -845,8 +861,23 @@ export default function App() {
               </div>
             </div>
 
-            <div id="single-page" className={`single-page ${viewMode === 'single' ? '' : 'hidden'}`}>
-              <button className="nav" onClick={() => setSinglePageIndex(Math.max(singlePageIndex - 1, 0))}>Prev</button>
+            <div
+              id="single-page"
+              className={`single-page ${viewMode === 'single' ? '' : 'hidden'} ${stageActive ? 'nav-visible' : ''}`}
+            >
+              <button
+                className="nav nav-prev"
+                onClick={() => setSinglePageIndex(Math.max(singlePageIndex - 1, 0))}
+                disabled={isPrevDisabled}
+                aria-label="Previous page"
+                title="Previous page"
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="14 6 8 12 14 18" />
+                  </svg>
+                </span>
+              </button>
               <div
                 className={`single-container ${isCentered ? 'centered' : ''}`}
                 ref={singleRef}
@@ -863,10 +894,17 @@ export default function App() {
                 )}
               </div>
               <button
-                className="nav"
+                className="nav nav-next"
                 onClick={() => setSinglePageIndex(Math.min(singlePageIndex + 1, pageCount - 1))}
+                disabled={isNextDisabled}
+                aria-label="Next page"
+                title="Next page"
               >
-                Next
+                <span className="nav-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="10 6 16 12 10 18" />
+                  </svg>
+                </span>
               </button>
             </div>
           </div>

@@ -527,10 +527,10 @@ button.accent {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: 50px 1fr 50px;
+  grid-template-columns: 72px 1fr 72px;
   align-items: center;
-  gap: 4px;
-  padding: 8px;
+  gap: 12px;
+  padding: 14px;
 }
 
 .single-container {
@@ -560,11 +560,72 @@ button.accent {
 }
 
 .single-page .nav {
-  height: 36px;
-  border-radius: 8px;
-  background: var(--accent-cool);
-  font-size: 12px;
-  padding: 0 12px;
+  height: 52px;
+  width: 52px;
+  justify-self: center;
+  border-radius: 14px;
+  background: rgba(31, 27, 22, 0.12);
+  color: var(--ink);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 8px 16px rgba(28, 24, 20, 0.08);
+  transform: scale(0.96);
+  transition: opacity 0.25s ease, transform 0.25s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.single-page .nav.nav-prev {
+  transform: translateX(6px) scale(0.96);
+}
+
+.single-page .nav.nav-next {
+  transform: translateX(-6px) scale(0.96);
+}
+
+.single-page.nav-visible .nav {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+}
+
+.single-page.nav-visible .nav.nav-prev,
+.single-page.nav-visible .nav.nav-next {
+  transform: translateX(0) scale(1);
+}
+
+.single-page .nav:hover {
+  background: rgba(31, 27, 22, 0.2);
+  box-shadow: 0 10px 18px rgba(28, 24, 20, 0.14);
+}
+
+.single-page .nav:active {
+  transform: translateY(0);
+}
+
+.single-page .nav[disabled] {
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.single-page.nav-visible .nav[disabled] {
+  opacity: 0.45;
+}
+
+.single-page .nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.single-page .nav-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .reader-footer {
