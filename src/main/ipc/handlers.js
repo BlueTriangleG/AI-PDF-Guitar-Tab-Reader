@@ -54,6 +54,13 @@ function registerIpcHandlers({ window, services }) {
   ipcMain.handle('settings:set', async (_event, key, value) => {
     return services.library.setSetting(key, value);
   });
+
+  ipcMain.handle('window:setTrafficLights', async (_event, visible) => {
+    if (process.platform === 'darwin' && window.setWindowButtonVisibility) {
+      window.setWindowButtonVisibility(visible);
+    }
+    return true;
+  });
 }
 
 module.exports = { registerIpcHandlers };

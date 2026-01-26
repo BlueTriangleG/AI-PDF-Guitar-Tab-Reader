@@ -87,8 +87,8 @@ button.accent {
 .layout {
   display: grid;
   grid-template-columns: 340px 1fr;
-  gap: 18px;
-  padding: 0 24px 28px 0;
+  gap: 0;
+  padding: 0;
   flex: 1;
   min-height: 0;
   position: relative;
@@ -97,7 +97,6 @@ button.accent {
 
 #app.fullscreen .layout {
   grid-template-columns: 1fr;
-  padding: 12px;
 }
 
 #app.fullscreen .library {
@@ -106,8 +105,6 @@ button.accent {
 
 #app.sidebar-collapsed .layout {
   grid-template-columns: 1fr;
-  gap: 0;
-  padding-left: 0;
 }
 
 #app.sidebar-hover .layout {
@@ -116,13 +113,14 @@ button.accent {
 
 .library {
   background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border: none;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
   padding: 52px 18px 18px;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  box-shadow: 0 12px 30px rgba(28, 24, 20, 0.08);
+  box-shadow: none;
   transition: transform 0.25s ease, opacity 0.2s ease, box-shadow 0.25s ease;
   opacity: 1;
   visibility: visible;
@@ -286,7 +284,7 @@ button.accent {
 }
 
 #app.sidebar-collapsed .reader {
-  padding-left: 24px;
+  padding-left: 0;
 }
 
 .library-item {
@@ -324,9 +322,10 @@ button.accent {
 .reader {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
   min-width: 0;
   min-height: 0;
+  position: relative;
 }
 
 .reader-toolbar {
@@ -334,27 +333,17 @@ button.accent {
   justify-content: space-between;
   gap: 20px;
   padding: 18px 22px;
-  border-radius: var(--radius);
-  border: 1px solid rgba(28, 24, 20, 0.1);
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(28, 24, 20, 0.1);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(246, 239, 227, 0.9));
-  box-shadow: 0 18px 38px rgba(28, 24, 20, 0.1);
+  box-shadow: 0 2px 8px rgba(28, 24, 20, 0.05);
   flex-wrap: wrap;
   align-items: center;
   position: relative;
   overflow: hidden;
   -webkit-app-region: drag;
   z-index: 1;
-}
-
-.reader-toolbar::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: linear-gradient(180deg, rgba(195, 104, 60, 0.65), rgba(46, 106, 98, 0.5));
-  opacity: 0.6;
 }
 
 .doc-title {
@@ -441,12 +430,12 @@ button.accent {
 
 .reader-stage {
   flex: 1;
-  border-radius: var(--radius);
-  border: 1px solid rgba(28, 24, 20, 0.1);
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: 0;
+  border: none;
+  background: var(--paper);
   overflow: hidden;
   position: relative;
-  box-shadow: inset 0 0 40px rgba(28, 24, 20, 0.05), 0 18px 32px rgba(28, 24, 20, 0.08);
+  box-shadow: none;
   min-height: 0;
 }
 
@@ -460,14 +449,13 @@ button.accent {
   min-height: 0;
   cursor: grab;
   overscroll-behavior: contain;
-  padding: 18px 20px;
-  scrollbar-gutter: stable;
+  padding: 8px;
 }
 
 .page-stack {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 8px;
   width: max-content;
 }
 
@@ -477,11 +465,11 @@ button.accent {
 }
 
 .page-shell {
-  background: #fff;
-  border-radius: 12px;
-  padding: 10px;
-  border: 1px solid rgba(28, 24, 20, 0.06);
-  box-shadow: 0 14px 22px rgba(28, 24, 20, 0.08);
+  background: transparent;
+  border-radius: 4px;
+  padding: 0;
+  border: none;
+  box-shadow: none;
   position: relative;
   width: fit-content;
   max-width: none;
@@ -530,10 +518,10 @@ button.accent {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: 60px 1fr 60px;
+  grid-template-columns: 50px 1fr 50px;
   align-items: center;
-  gap: 8px;
-  padding: 20px;
+  gap: 4px;
+  padding: 8px;
 }
 
 .single-container {
@@ -547,7 +535,7 @@ button.accent {
   min-height: 0;
   cursor: grab;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  background: var(--paper);
 }
 
 .single-container.centered {
@@ -563,9 +551,11 @@ button.accent {
 }
 
 .single-page .nav {
-  height: 44px;
-  border-radius: 12px;
+  height: 36px;
+  border-radius: 8px;
   background: var(--accent-cool);
+  font-size: 12px;
+  padding: 0 12px;
 }
 
 .reader-footer {
@@ -682,4 +672,66 @@ button.accent {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--border);
   box-shadow: 0 8px 16px rgba(28, 24, 20, 0.08);
+}
+
+/* Focus Mode - toolbar auto-hide */
+#app.focus-mode .reader-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  transform: translateY(-100%);
+  opacity: 0;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+  border-radius: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(246, 239, 227, 0.95));
+  box-shadow: 0 4px 20px rgba(28, 24, 20, 0.15);
+}
+
+#app.focus-mode.toolbar-hover .reader-toolbar {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Focus mode button active state */
+button.ghost.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Scrollbar - hidden by default, show on hover/scroll */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(28, 24, 20, 0);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.page-canvas:hover::-webkit-scrollbar-thumb,
+.single-container:hover::-webkit-scrollbar-thumb,
+.library-list:hover::-webkit-scrollbar-thumb {
+  background: rgba(28, 24, 20, 0.2);
+}
+
+.page-canvas::-webkit-scrollbar-thumb:hover,
+.single-container::-webkit-scrollbar-thumb:hover,
+.library-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(28, 24, 20, 0.35);
+}
+
+/* Show scrollbar while scrolling */
+.page-canvas.is-scrolling::-webkit-scrollbar-thumb,
+.single-container.is-scrolling::-webkit-scrollbar-thumb,
+.library-list.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(28, 24, 20, 0.2);
 }

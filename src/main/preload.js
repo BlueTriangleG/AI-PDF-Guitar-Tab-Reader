@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('api', {
     get: (key) => ipcRenderer.invoke('settings:get', key),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value)
   },
+  window: {
+    setTrafficLights: (visible) => ipcRenderer.invoke('window:setTrafficLights', visible)
+  },
   fileUrlFromPath: (filePath) => pathToFileURL(filePath).toString(),
   onLibraryChanged: (callback) => {
     const handler = () => callback();

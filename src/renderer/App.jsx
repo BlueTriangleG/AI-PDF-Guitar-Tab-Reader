@@ -145,6 +145,8 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarHover, setSidebarHover] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [toolbarHover, setToolbarHover] = useState(false);
   const [fitScale, setFitScale] = useState(1);
   const [isCentered, setIsCentered] = useState(false);
 
@@ -152,6 +154,7 @@ export default function App() {
   const singleRef = useRef(null);
   const readerStageRef = useRef(null);
   const sidebarRef = useRef(null);
+  const readerRef = useRef(null);
   const pageBaseRef = useRef({ width: null, height: null });
   const zoomSnapRef = useRef(null);
   const zoomScrollRef = useRef(null);
@@ -199,13 +202,12 @@ export default function App() {
     const container = viewMode === 'single' ? singleRef.current : canvasRef.current;
     const host = container || readerStageRef.current;
     if (!host) return;
-    const padding = viewMode === 'single' ? 0 : 48;
-    const shellPadding = 20;
-    const available = Math.max(host.clientWidth - padding - shellPadding, 200);
+    const padding = 16;
+    const available = Math.max(host.clientWidth - padding, 200);
     const fit = available / baseWidth;
     const nextScale = Math.min(Math.max(fit, 1), MAX_ZOOM);
     setFitScale(nextScale);
-    const contentWidth = baseWidth * nextScale * zoom + shellPadding;
+    const contentWidth = baseWidth * nextScale * zoom;
     setIsCentered(contentWidth < host.clientWidth - 10);
   }, [viewMode, zoom, MAX_ZOOM]);
 
@@ -243,8 +245,7 @@ export default function App() {
     const baseWidth = pageBaseRef.current.width;
     const host = viewMode === 'single' ? singleRef.current : canvasRef.current;
     if (!baseWidth || !host) return;
-    const shellPadding = 20;
-    const contentWidth = baseWidth * fitScale * zoom + shellPadding;
+    const contentWidth = baseWidth * fitScale * zoom;
     setIsCentered(contentWidth < host.clientWidth - 10);
   }, [fitScale, zoom, viewMode]);
 
@@ -295,6 +296,36 @@ export default function App() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    if (api?.window?.setTrafficLights) {
+      api.window.setTrafficLights(sidebarPinned || sidebarHover);
+    }
+  }, [sidebarPinned, sidebarHover]);
+
+  useEffect(() => {
+    let scrollTimeout;
+    const handleScroll = (event) => {
+      const target = event.target;
+      target.classList.add('is-scrolling');
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        target.classList.remove('is-scrolling');
+      }, 1000);
+    };
+
+    const containers = [canvasRef.current, singleRef.current];
+    containers.forEach((el) => {
+      if (el) el.addEventListener('scroll', handleScroll);
+    });
+
+    return () => {
+      containers.forEach((el) => {
+        if (el) el.removeEventListener('scroll', handleScroll);
+      });
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
+
   const toggleFullscreen = useCallback(() => {
     if (!readerStageRef.current) return;
     if (!document.fullscreenElement) {
@@ -312,6 +343,10 @@ export default function App() {
     });
   }, []);
 
+  const toggleFocusMode = useCallback(() => {
+    setFocusMode((prev) => !prev);
+    setToolbarHover(false);
+  }, []);
 
   const handlePanMove = useCallback((event) => {
     if (!panState.current.active) return;
@@ -411,6 +446,10 @@ export default function App() {
         toggleSidebarPinned();
       }
 
+      if (event.key.toLowerCase() === 'z') {
+        toggleFocusMode();
+      }
+
       if (viewMode === 'single') {
         if (event.key === 'ArrowRight') {
           setSinglePageIndex((prev) => Math.min(prev + 1, pageCount - 1));
@@ -430,7 +469,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedDoc, viewMode, pageCount, setSinglePageIndex, toggleFullscreen, toggleSidebarPinned]);
+  }, [selectedDoc, viewMode, pageCount, setSinglePageIndex, toggleFullscreen, toggleSidebarPinned, toggleFocusMode]);
 
   useEffect(() => {
     if (sidebarPinned || !sidebarHover) return undefined;
@@ -454,6 +493,26 @@ export default function App() {
       window.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [sidebarPinned, sidebarHover]);
+
+  useEffect(() => {
+    if (!focusMode) {
+      setToolbarHover(false);
+      return undefined;
+    }
+    const triggerZone = 60;
+    const handleMouseMove = (event) => {
+      if (!readerRef.current) return;
+      const rect = readerRef.current.getBoundingClientRect();
+      const nearTop = event.clientY >= rect.top && event.clientY <= rect.top + triggerZone;
+      if (nearTop && !toolbarHover) {
+        setToolbarHover(true);
+      } else if (!nearTop && toolbarHover && event.clientY > rect.top + 150) {
+        setToolbarHover(false);
+      }
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [focusMode, toolbarHover]);
 
   useEffect(() => {
     if (viewMode !== 'single' || pageDelay <= 0 || pageCount <= 1) return undefined;
@@ -501,7 +560,7 @@ export default function App() {
       id="app"
       className={`${isFullscreen ? 'fullscreen' : ''} ${sidebarPinned ? '' : 'sidebar-collapsed'} ${
         sidebarHover ? 'sidebar-hover' : ''
-      }`}
+      } ${focusMode ? 'focus-mode' : ''} ${toolbarHover ? 'toolbar-hover' : ''}`}
     >
       <main className="layout">
         {!sidebarPinned && !sidebarHover && (
@@ -564,7 +623,7 @@ export default function App() {
           </div>
         </aside>
 
-        <section className="reader">
+        <section className="reader" ref={readerRef}>
           <div className="reader-toolbar">
             <div className="doc-meta">
               <div id="doc-title" className="doc-title">{selectedDoc?.title || 'Select a score'}</div>
@@ -573,6 +632,9 @@ export default function App() {
               </div>
             </div>
             <div className="toolbar-controls">
+              <button className={`ghost ${focusMode ? 'active' : ''}`} onClick={toggleFocusMode} title="Toggle Focus Mode (Z)">
+                {focusMode ? 'Exit Focus' : 'Focus'}
+              </button>
               <button className="ghost" onClick={toggleFullscreen}>
                 {isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
               </button>
