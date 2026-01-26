@@ -17,9 +17,45 @@ function formatCount(count) {
   return `${count} Scores`;
 }
 
+function formatItemCount(count) {
+  if (count === 1) return '1 item';
+  return `${count} items`;
+}
+
 function basenameForPath(value) {
   if (!value) return '';
   return value.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || value;
+}
+
+function normalizePath(value) {
+  if (!value) return '';
+  return value.replace(/[\\/]+$/, '');
+}
+
+function getParentDir(value) {
+  const trimmed = normalizePath(value);
+  if (!trimmed) return '';
+  const lastSlash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  if (lastSlash <= 0) return '';
+  return trimmed.slice(0, lastSlash);
+}
+
+function getRelativePath(targetPath, rootPath) {
+  const root = normalizePath(rootPath);
+  if (!targetPath || !root) return '';
+  if (!targetPath.startsWith(root)) return '';
+  let relative = targetPath.slice(root.length);
+  relative = relative.replace(/^[\\/]+/, '');
+  return relative;
+}
+
+function isUnderRoot(filePath, rootPath) {
+  const root = normalizePath(rootPath);
+  if (!filePath || !root) return false;
+  if (!filePath.startsWith(root)) return false;
+  if (filePath.length === root.length) return true;
+  const next = filePath.charAt(root.length);
+  return next === '/' || next === '\\';
 }
 
 function useMetronome({ bpm, timeSignature, subdivision, countInBars, active, onPulse }) {
@@ -198,6 +234,69 @@ function PageCanvas({ pdfDoc, pageIndex, zoom }) {
       {!rendered && <div className="page-placeholder" />}
       {error && <div className="page-error">{error}</div>}
       <canvas ref={canvasRef} className={`pdf-canvas ${rendered ? 'visible' : ''}`} />
+    </div>
+  );
+}
+
+function DocPreview({ filePath, label }) {
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [error, setError] = useState(false);
+  const objectUrlRef = useRef('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreviewUrl('');
+    setError(false);
+    if (!api?.pdf?.renderPage || !filePath) return undefined;
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = '';
+    }
+
+    (async () => {
+      try {
+        const outputPath = await api.pdf.renderPage(filePath, 0, 0.3);
+        if (cancelled) return;
+        let blobUrl = '';
+        if (api.pdf.readFile) {
+          const data = await api.pdf.readFile(outputPath);
+          if (cancelled) return;
+          const bytes = data?.buffer
+            ? data
+            : data?.data
+              ? new Uint8Array(data.data)
+              : new Uint8Array(data || []);
+          const blob = new Blob([bytes], { type: 'image/png' });
+          blobUrl = URL.createObjectURL(blob);
+        } else if (api.fileUrlFromPath) {
+          blobUrl = api.fileUrlFromPath(outputPath);
+        } else {
+          blobUrl = outputPath;
+        }
+        objectUrlRef.current = blobUrl;
+        setPreviewUrl(blobUrl);
+      } catch (err) {
+        if (!cancelled) setError(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = '';
+      }
+    };
+  }, [filePath]);
+
+  return (
+    <div className={`doc-preview ${previewUrl ? 'ready' : ''} ${error ? 'error' : ''}`}>
+      {previewUrl ? (
+        <img src={previewUrl} alt={label} loading="lazy" />
+      ) : (
+        <div className="doc-preview-placeholder" />
+      )}
     </div>
   );
 }
@@ -387,41 +486,56 @@ function MetronomeWindow() {
 }
 
 function LibraryWindow() {
-  const ALL_VIEW = '__all__';
+  const ROOT_VIEW = '__root__';
   const [sources, setSources] = useState([]);
-  const [folders, setFolders] = useState([]);
-  const [documents, setDocuments] = useState([]);
+  const [rootFolders, setRootFolders] = useState([]);
+  const [subfolders, setSubfolders] = useState([]);
+  const [allDocuments, setAllDocuments] = useState([]);
   const [recentDocs, setRecentDocs] = useState([]);
-  const [selectedView, setSelectedView] = useState(ALL_VIEW);
+  const [selectedView, setSelectedView] = useState(ROOT_VIEW);
   const [activeDocId, setActiveDocId] = useState(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [loading, setLoading] = useState(true);
   const [sourcesReady, setSourcesReady] = useState(false);
+  const [viewMode, setViewMode] = useState('grid');
+  const [sidebarFolders, setSidebarFolders] = useState([]);
+  const [sidebarLoading, setSidebarLoading] = useState(false);
 
   const refreshSources = useCallback(async () => {
     if (!api?.library) return;
-    const [nextSources, nextFolders, nextRecent] = await Promise.all([
-      api.library.listSources(),
-      api.library.listFolders(),
-      api.library.listRecent(10)
-    ]);
-    setSources(nextSources || []);
-    setFolders(nextFolders || []);
-    setRecentDocs(nextRecent || []);
-    setSourcesReady(true);
+    setLoading(true);
+    try {
+      const [nextSources, nextFolders, nextRecent, nextDocs] = await Promise.all([
+        api.library.listSources(),
+        api.library.listFolders(),
+        api.library.listRecent(10),
+        api.library.listDocuments()
+      ]);
+      setSources(nextSources || []);
+      setRootFolders(nextFolders || []);
+      setRecentDocs(nextRecent || []);
+      setAllDocuments(nextDocs || []);
+      setSourcesReady(true);
+    } finally {
+      setLoading(false);
+    }
   }, [api]);
 
-  const refreshDocuments = useCallback(async (view) => {
+  const refreshSubfolders = useCallback(async (pathValue) => {
     if (!api?.library) return;
-    setLoading(true);
-    let docs = [];
-    if (view === ALL_VIEW) {
-      docs = await api.library.listDocuments();
-    } else if (view) {
-      docs = await api.library.listDocumentsBySource(view);
+    if (!pathValue || pathValue === ROOT_VIEW) {
+      setSubfolders([]);
+      return;
     }
-    setDocuments(docs || []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const nextFolders = await api.library.listFolders(pathValue);
+      setSubfolders(nextFolders || []);
+    } catch (error) {
+      setSubfolders([]);
+    } finally {
+      setLoading(false);
+    }
   }, [api]);
 
   useEffect(() => {
@@ -429,21 +543,30 @@ function LibraryWindow() {
     if (!api?.onLibraryChanged) return undefined;
     const unsubscribe = api.onLibraryChanged(() => {
       refreshSources();
-      refreshDocuments(selectedView);
+      refreshSubfolders(selectedView);
     });
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [api, refreshSources, refreshDocuments, selectedView]);
+  }, [api, refreshSources, refreshSubfolders, selectedView]);
 
   useEffect(() => {
-    refreshDocuments(selectedView);
-  }, [selectedView, refreshDocuments]);
+    if (selectedView === ROOT_VIEW) {
+      setSubfolders([]);
+      return;
+    }
+    refreshSubfolders(selectedView);
+  }, [selectedView, refreshSubfolders]);
 
+  const internalSource = useMemo(
+    () => sources.find((source) => source.kind === 'internal'),
+    [sources]
+  );
   const linkedSources = useMemo(
     () => sources.filter((source) => source.kind === 'linked'),
     [sources]
   );
+  const internalRoot = internalSource?.path || '';
 
   const folderEntries = useMemo(() => {
     const seen = new Set();
@@ -453,17 +576,107 @@ function LibraryWindow() {
       seen.add(entry);
       entries.push(entry);
     };
-    folders.forEach(add);
+    rootFolders.forEach(add);
     linkedSources.forEach((source) => add(source.path));
     return entries.sort((a, b) => basenameForPath(a).localeCompare(basenameForPath(b)));
-  }, [folders, linkedSources]);
+  }, [rootFolders, linkedSources]);
+
+  const currentRoot = useMemo(() => {
+    if (selectedView === ROOT_VIEW) return '';
+    if (internalRoot && isUnderRoot(selectedView, internalRoot)) return internalRoot;
+    const linked = linkedSources.find((source) => isUnderRoot(selectedView, source.path));
+    return linked?.path || '';
+  }, [selectedView, internalRoot, linkedSources]);
+
+  const sidebarParentPath = useMemo(() => {
+    if (selectedView === ROOT_VIEW) return '';
+    if (!currentRoot) return '';
+    const normalizedRoot = normalizePath(currentRoot);
+    const normalizedInternal = normalizePath(internalRoot);
+    const normalizedSelected = normalizePath(selectedView);
+    const isLinkedRoot = normalizedRoot && normalizedInternal && normalizedRoot !== normalizedInternal;
+    if (normalizedSelected === normalizedRoot && isLinkedRoot) {
+      return currentRoot;
+    }
+    const parent = getParentDir(selectedView);
+    if (!parent || !isUnderRoot(parent, currentRoot)) return '';
+    return parent;
+  }, [selectedView, currentRoot, internalRoot]);
 
   useEffect(() => {
-    if (!sourcesReady || selectedView === ALL_VIEW) return;
-    if (!folderEntries.includes(selectedView)) {
-      setSelectedView(ALL_VIEW);
+    if (!sourcesReady || selectedView === ROOT_VIEW) return;
+    if (!currentRoot) {
+      setSelectedView(ROOT_VIEW);
     }
-  }, [folderEntries, selectedView, sourcesReady]);
+  }, [currentRoot, selectedView, sourcesReady]);
+
+  const refreshSidebarFolders = useCallback(async (parentPath) => {
+    if (!api?.library) return;
+    if (!parentPath) {
+      setSidebarFolders(folderEntries);
+      return;
+    }
+    setSidebarLoading(true);
+    try {
+      const nextFolders = await api.library.listFolders(parentPath);
+      setSidebarFolders(nextFolders || []);
+    } catch (error) {
+      setSidebarFolders([]);
+    } finally {
+      setSidebarLoading(false);
+    }
+  }, [api, folderEntries]);
+
+  useEffect(() => {
+    refreshSidebarFolders(sidebarParentPath);
+  }, [sidebarParentPath, refreshSidebarFolders]);
+
+  const currentFolders = selectedView === ROOT_VIEW ? folderEntries : subfolders;
+
+  const currentDocs = useMemo(() => {
+    if (!allDocuments.length) return [];
+    if (selectedView === ROOT_VIEW) {
+      if (!internalRoot) return [];
+      return allDocuments.filter((doc) => normalizePath(getParentDir(doc.file_path)) === normalizePath(internalRoot));
+    }
+    return allDocuments.filter((doc) => normalizePath(getParentDir(doc.file_path)) === normalizePath(selectedView));
+  }, [allDocuments, selectedView, internalRoot]);
+
+  const folderItems = useMemo(() => {
+    return currentFolders.map((folder) => ({
+      path: folder,
+      label: basenameForPath(folder),
+      count: allDocuments.filter((doc) => isUnderRoot(doc.file_path, folder)).length
+    }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [currentFolders, allDocuments]);
+
+  const docItems = useMemo(() => {
+    return currentDocs.map((doc) => ({
+      doc,
+      label: doc.title || 'Untitled'
+    }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [currentDocs]);
+
+  const totalItemCount = folderItems.length + docItems.length;
+
+  const positionText = useMemo(() => {
+    if (selectedView === ROOT_VIEW) return 'My Library';
+    if (internalRoot && currentRoot && isUnderRoot(currentRoot, internalRoot)) {
+      const relative = getRelativePath(selectedView, internalRoot);
+      if (!relative) return 'My Library';
+      return ['My Library', ...relative.split(/[\\/]/)].filter(Boolean).join(' / ');
+    }
+    if (currentRoot) {
+      const relative = getRelativePath(selectedView, currentRoot);
+      const parts = relative ? relative.split(/[\\/]/) : [];
+      return ['My Library', basenameForPath(currentRoot), ...parts].filter(Boolean).join(' / ');
+    }
+    return 'My Library';
+  }, [selectedView, currentRoot, internalRoot]);
+
+  const canGoBack = selectedView !== ROOT_VIEW;
 
   const handleAddFolder = useCallback(async () => {
     if (!api?.library) return;
@@ -477,26 +690,54 @@ function LibraryWindow() {
   const handleImportFiles = useCallback(async () => {
     if (!api?.library) return;
     await api.library.importFiles();
-    setSelectedView(ALL_VIEW);
-    await refreshDocuments(ALL_VIEW);
-  }, [api, refreshDocuments]);
+    setSelectedView(ROOT_VIEW);
+    await refreshSources();
+  }, [api, refreshSources]);
 
   const handleCreateFolder = useCallback(async (event) => {
     event.preventDefault();
     if (!api?.library) return;
     const trimmed = newFolderName.trim();
     if (!trimmed) return;
-    const created = await api.library.createFolder(trimmed);
-    setNewFolderName('');
-    await refreshSources();
-    if (created) setSelectedView(created);
-  }, [api, newFolderName, refreshSources]);
+    const parentPath = selectedView === ROOT_VIEW ? internalRoot : selectedView;
+    try {
+      const created = await api.library.createFolder(trimmed, parentPath);
+      setNewFolderName('');
+      await refreshSources();
+      if (created) setSelectedView(created);
+    } catch (error) {
+      setNewFolderName('');
+    }
+  }, [api, newFolderName, refreshSources, selectedView, internalRoot]);
 
   const handleOpenDoc = useCallback(async (doc) => {
     if (!api?.library || !doc?.id) return;
     setActiveDocId(doc.id);
     await api.library.openDocument(doc.id);
   }, [api]);
+
+  const handleBack = useCallback(() => {
+    if (!canGoBack) return;
+    if (!currentRoot) {
+      setSelectedView(ROOT_VIEW);
+      return;
+    }
+    if (normalizePath(selectedView) === normalizePath(currentRoot)) {
+      setSelectedView(ROOT_VIEW);
+      return;
+    }
+    const parent = getParentDir(selectedView);
+    if (!parent || !isUnderRoot(parent, currentRoot)) {
+      setSelectedView(ROOT_VIEW);
+      return;
+    }
+    const isInternalRoot = internalRoot && normalizePath(currentRoot) === normalizePath(internalRoot);
+    if (isInternalRoot && normalizePath(parent) === normalizePath(currentRoot)) {
+      setSelectedView(ROOT_VIEW);
+      return;
+    }
+    setSelectedView(parent);
+  }, [canGoBack, currentRoot, selectedView, internalRoot]);
 
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
@@ -509,7 +750,7 @@ function LibraryWindow() {
   }, [handleImportFiles, handleAddFolder]);
 
   const activeLabel = useMemo(() => {
-    if (selectedView === ALL_VIEW) return 'My Library';
+    if (selectedView === ROOT_VIEW) return 'My Library';
     return basenameForPath(selectedView);
   }, [selectedView]);
 
@@ -532,6 +773,10 @@ function LibraryWindow() {
       <div className="library-body">
         <aside className="library-sidebar">
           <div className="library-section">
+            <div className="section-title">Position</div>
+            <div className="position-display">{positionText}</div>
+          </div>
+          <div className="library-section">
             <div className="section-title">History</div>
             <div className="recent-list">
               {recentDocs.map((doc) => (
@@ -551,19 +796,9 @@ function LibraryWindow() {
             </div>
           </div>
           <div className="library-section">
-            <div className="section-title">My Library</div>
-            <button
-              type="button"
-              className={`source-item ${selectedView === ALL_VIEW ? 'active' : ''}`}
-              onClick={() => setSelectedView(ALL_VIEW)}
-            >
-              <span className="source-name">All Scores</span>
-            </button>
-          </div>
-          <div className="library-section">
             <div className="section-title">Folders</div>
             <div className="folder-list">
-              {folderEntries.map((folder) => (
+              {sidebarFolders.map((folder) => (
                 <button
                   key={folder}
                   type="button"
@@ -573,7 +808,7 @@ function LibraryWindow() {
                   <span className="source-name">{basenameForPath(folder)}</span>
                 </button>
               ))}
-              {!folderEntries.length && (
+              {!sidebarLoading && !sidebarFolders.length && (
                 <div className="source-empty">No folders yet</div>
               )}
             </div>
@@ -590,32 +825,89 @@ function LibraryWindow() {
         </aside>
         <section className="library-content">
           <div className="library-content-head">
-            <div className="content-title">{activeLabel}</div>
-            <div className="content-path">
-              {selectedView === ALL_VIEW ? 'All locations' : basenameForPath(selectedView)}
-            </div>
-            <div className="content-meta">{formatCount(documents.length)}</div>
-          </div>
-          <div className="library-docs">
-            {loading && <div className="empty">Loading library...</div>}
-            {!loading && documents.length === 0 && (
-              <div className="empty">Import scores to get started.</div>
-            )}
-            {!loading && documents.map((doc) => (
-              <button
-                key={doc.id}
-                type="button"
-                className={`library-card ${activeDocId === doc.id ? 'active' : ''}`}
-                onClick={() => handleOpenDoc(doc)}
-              >
-                <div className="library-card-title">{doc.title || 'Untitled'}</div>
-                <div className="library-card-meta">
-                  <span>{doc.page_count || '--'} pages</span>
-                  <span>{basenameForPath(doc.file_path)}</span>
+            <div className="content-title-row">
+              <div className="content-title-main">
+                {canGoBack && (
+                  <button type="button" className="back-button" onClick={handleBack} aria-label="Back">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                )}
+                <div className="content-title">{activeLabel}</div>
+              </div>
+              <div className="content-tools">
+                <div className="view-toggle" role="group" aria-label="View mode">
+                  <button
+                    type="button"
+                    className={viewMode === 'grid' ? 'active' : ''}
+                    onClick={() => setViewMode('grid')}
+                  >
+                    Grid
+                  </button>
+                  <button
+                    type="button"
+                    className={viewMode === 'list' ? 'active' : ''}
+                    onClick={() => setViewMode('list')}
+                  >
+                    List
+                  </button>
                 </div>
-              </button>
-            ))}
+              </div>
+            </div>
+            <div className="content-path">
+              {selectedView === ROOT_VIEW ? 'My Library' : selectedView}
+            </div>
+            <div className="content-meta">{formatItemCount(totalItemCount)}</div>
           </div>
+          {loading && <div className="empty">Loading library...</div>}
+          {!loading && (
+            <>
+              <div className="content-section folders">
+                <div className="content-section-title">Folders</div>
+                <div className={`library-items ${viewMode}`}>
+                  {folderItems.map((folder) => (
+                    <div key={folder.path} className="folder-entry">
+                      <button
+                        type="button"
+                        className="folder-button"
+                        onClick={() => setSelectedView(folder.path)}
+                        aria-label={`Open ${folder.label}`}
+                      >
+                        <div className="item-icon folder" aria-hidden="true" />
+                      </button>
+                      <div className="item-title">{folder.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {!folderItems.length && (
+                  <div className="empty">No folders here yet.</div>
+                )}
+              </div>
+              <div className="content-section scores">
+                <div className="content-section-title">Scores</div>
+                <div className={`library-items ${viewMode}`}>
+                  {docItems.map((item) => (
+                    <button
+                      key={item.doc.id}
+                      type="button"
+                      className={`item-card doc-item ${activeDocId === item.doc.id ? 'active' : ''}`}
+                      onClick={() => handleOpenDoc(item.doc)}
+                    >
+                      <DocPreview filePath={item.doc.file_path} label={item.doc.title || 'Preview'} />
+                      <div className="item-title">{item.doc.title || 'Untitled'}</div>
+                      <div className="item-meta">
+                        <span>{item.doc.page_count || '--'} pages</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {!docItems.length && (
+                  <div className="empty">No scores here yet.</div>
+                )}
+              </div>
+            </>
+          )}
         </section>
       </div>
     </div>

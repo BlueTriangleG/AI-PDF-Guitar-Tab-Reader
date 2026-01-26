@@ -13,6 +13,21 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     return root.endsWith(path.sep) ? root : `${root}${path.sep}`;
   }
 
+  function isUnderRoot(targetPath, rootPath) {
+    if (!targetPath || !rootPath) return false;
+    const normalizedRoot = normalizeRoot(rootPath);
+    const normalizedTarget = normalizeRoot(targetPath);
+    return normalizedTarget.startsWith(normalizedRoot);
+  }
+
+  function resolveFolderPath(parentPath) {
+    if (!parentPath) return internalRoot;
+    if (isUnderRoot(parentPath, internalRoot)) return parentPath;
+    const linked = linkedSources.find((source) => isUnderRoot(parentPath, source.path));
+    if (linked) return parentPath;
+    return internalRoot;
+  }
+
   function getAllRoots() {
     const roots = [internalRoot, ...linkedSources.map((source) => source.path)];
     return roots.filter(Boolean);
@@ -92,17 +107,18 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     if (!internalRoot) return null;
     const safeName = path.basename((folderName || '').trim());
     if (!safeName) return null;
-    const base = parentPath && parentPath.startsWith(internalRoot) ? parentPath : internalRoot;
+    const base = resolveFolderPath(parentPath);
     const targetPath = path.join(base, safeName);
     await fileScanner.ensureDirectory(targetPath);
     emitter.emit('changed');
     return targetPath;
   }
 
-  async function listFolders() {
+  async function listFolders(parentPath = internalRoot) {
     if (!internalRoot) return [];
     try {
-      return await fileScanner.listFolders(internalRoot);
+      const base = resolveFolderPath(parentPath);
+      return await fileScanner.listFolders(base);
     } catch (error) {
       return [];
     }

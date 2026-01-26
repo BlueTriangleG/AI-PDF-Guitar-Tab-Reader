@@ -14,7 +14,9 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
   ipcMain.handle('library:listRecent', async (_event, limit) => {
     return library.listRecentDocuments(limit);
   });
-  ipcMain.handle('library:listFolders', async () => library.listFolders());
+  ipcMain.handle('library:listFolders', async (_event, parentPath) => {
+    return library.listFolders(parentPath);
+  });
   ipcMain.handle('library:createFolder', async (_event, name, parentPath) => {
     return library.createFolder(name, parentPath);
   });

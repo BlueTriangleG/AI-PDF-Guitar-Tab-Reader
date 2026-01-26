@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('api', {
     listSources: () => ipcRenderer.invoke('library:listSources'),
     listDocumentsBySource: (sourcePath) => ipcRenderer.invoke('library:listDocumentsBySource', sourcePath),
     listRecent: (limit) => ipcRenderer.invoke('library:listRecent', limit),
-    listFolders: () => ipcRenderer.invoke('library:listFolders'),
+    listFolders: (parentPath) => ipcRenderer.invoke('library:listFolders', parentPath),
     createFolder: (name, parentPath) => ipcRenderer.invoke('library:createFolder', name, parentPath),
     linkFolder: () => ipcRenderer.invoke('library:linkFolder'),
     unlinkFolder: (folderPath) => ipcRenderer.invoke('library:unlinkFolder', folderPath),
