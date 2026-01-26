@@ -26,6 +26,13 @@ async function ensureDirectory(dir) {
   await fs.promises.mkdir(dir, { recursive: true });
 }
 
+async function listFolders(dir) {
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => path.join(dir, entry.name));
+}
+
 async function copyPdfFiles(files, destinationRoot) {
   await ensureDirectory(destinationRoot);
   const results = [];
@@ -50,6 +57,7 @@ async function copyPdfFiles(files, destinationRoot) {
 function createFileScanner() {
   return {
     listPdfFiles: walkDirectory,
+    listFolders,
     ensureDirectory,
     copyPdfFiles
   };

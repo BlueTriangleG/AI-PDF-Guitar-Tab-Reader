@@ -19,7 +19,7 @@ async function initServices() {
     pdfService,
     fileScanner,
     watcher,
-    getDefaultLibraryPath: () => path.join(app.getPath('documents'), 'AI Guitar Tabs'),
+    getDefaultLibraryPath: () => path.join(app.getPath('userData'), 'library'),
   });
 
   await library.init();

@@ -7,7 +7,15 @@ contextBridge.exposeInMainWorld('api', {
     rescan: () => ipcRenderer.invoke('library:scan'),
     getRoot: () => ipcRenderer.invoke('library:getRoot'),
     setRoot: () => ipcRenderer.invoke('library:setRoot'),
-    importFiles: () => ipcRenderer.invoke('library:import')
+    importFiles: () => ipcRenderer.invoke('library:import'),
+    listSources: () => ipcRenderer.invoke('library:listSources'),
+    listDocumentsBySource: (sourcePath) => ipcRenderer.invoke('library:listDocumentsBySource', sourcePath),
+    listRecent: (limit) => ipcRenderer.invoke('library:listRecent', limit),
+    listFolders: () => ipcRenderer.invoke('library:listFolders'),
+    createFolder: (name, parentPath) => ipcRenderer.invoke('library:createFolder', name, parentPath),
+    linkFolder: () => ipcRenderer.invoke('library:linkFolder'),
+    unlinkFolder: (folderPath) => ipcRenderer.invoke('library:unlinkFolder', folderPath),
+    openDocument: (docId) => ipcRenderer.invoke('library:openDocument', docId)
   },
   pdf: {
     getInfo: (filePath) => ipcRenderer.invoke('pdf:info', filePath),
@@ -41,5 +49,10 @@ contextBridge.exposeInMainWorld('api', {
     const handler = () => callback();
     ipcRenderer.on('menu:library-location', handler);
     return () => ipcRenderer.removeListener('menu:library-location', handler);
+  },
+  onReaderOpenDocument: (callback) => {
+    const handler = (_event, docId) => callback(docId);
+    ipcRenderer.on('reader:open-document', handler);
+    return () => ipcRenderer.removeListener('reader:open-document', handler);
   }
 });

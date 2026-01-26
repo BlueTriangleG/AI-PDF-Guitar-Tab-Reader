@@ -30,10 +30,7 @@ export function useLibrary(api) {
   const chooseLibraryRoot = useCallback(async () => {
     if (!api?.library) return null;
     const root = await api.library.setRoot();
-    if (root) {
-      setLibraryRoot(root);
-      await refresh();
-    }
+    if (root) await refresh();
     return root;
   }, [api, refresh]);
 

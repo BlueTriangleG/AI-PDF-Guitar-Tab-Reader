@@ -9,6 +9,25 @@ function createLibraryRepository(db) {
     ORDER BY d.title COLLATE NOCASE ASC
   `);
 
+  const listRecentStmt = db.prepare(`
+    SELECT d.*, rs.page_index, rs.zoom, rs.scroll_offset, rs.view_mode,
+           rs.auto_scroll_speed, rs.auto_page_turn_delay
+    FROM documents d
+    LEFT JOIN reading_states rs ON rs.document_id = d.id
+    WHERE d.last_opened IS NOT NULL
+    ORDER BY d.last_opened DESC
+    LIMIT ?
+  `);
+
+  const listByPrefixStmt = db.prepare(`
+    SELECT d.*, rs.page_index, rs.zoom, rs.scroll_offset, rs.view_mode,
+           rs.auto_scroll_speed, rs.auto_page_turn_delay
+    FROM documents d
+    LEFT JOIN reading_states rs ON rs.document_id = d.id
+    WHERE d.file_path LIKE ?
+    ORDER BY d.title COLLATE NOCASE ASC
+  `);
+
   const upsertStmt = db.prepare(`
     INSERT INTO documents (
       title, artist, file_path, page_count, file_mtime, file_size, created_at, updated_at, last_opened
@@ -32,6 +51,15 @@ function createLibraryRepository(db) {
   const getSettingStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
   const setSettingStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
 
+  const listSourcesStmt = db.prepare('SELECT id, path, kind, created_at FROM library_sources ORDER BY kind ASC, path ASC');
+  const upsertSourceStmt = db.prepare(`
+    INSERT INTO library_sources (path, kind, created_at)
+    VALUES (@path, @kind, @created_at)
+    ON CONFLICT(path) DO UPDATE SET
+      kind = excluded.kind
+  `);
+  const deleteSourceStmt = db.prepare('DELETE FROM library_sources WHERE path = ?');
+
   const upsertReadingStateStmt = db.prepare(`
     INSERT INTO reading_states (
       document_id, page_index, zoom, scroll_offset, view_mode, auto_scroll_speed, auto_page_turn_delay
@@ -49,6 +77,14 @@ function createLibraryRepository(db) {
 
   function listDocuments() {
     return listStmt.all();
+  }
+
+  function listRecentDocuments(limit = 12) {
+    return listRecentStmt.all(limit);
+  }
+
+  function listDocumentsByPrefix(prefix) {
+    return listByPrefixStmt.all(prefix);
   }
 
   function upsertDocument(document) {
@@ -89,12 +125,26 @@ function createLibraryRepository(db) {
     setSettingStmt.run(key, value);
   }
 
+  function listSources() {
+    return listSourcesStmt.all();
+  }
+
+  function upsertSource(source) {
+    return upsertSourceStmt.run(source);
+  }
+
+  function deleteSource(pathValue) {
+    return deleteSourceStmt.run(pathValue);
+  }
+
   function saveReadingState(state) {
     upsertReadingStateStmt.run(state);
   }
 
   return {
     listDocuments,
+    listRecentDocuments,
+    listDocumentsByPrefix,
     upsertDocument,
     deleteByPath,
     pruneMissing,
@@ -102,6 +152,9 @@ function createLibraryRepository(db) {
     updateLastOpened,
     getSetting,
     setSetting,
+    listSources,
+    upsertSource,
+    deleteSource,
     saveReadingState
   };
 }

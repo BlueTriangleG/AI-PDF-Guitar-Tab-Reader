@@ -1,11 +1,13 @@
 const { app, BrowserWindow } = require('electron');
 const { createMainWindow } = require('./windows/main_window');
+const { createLibraryWindow } = require('./windows/library_window');
 const { createMetronomeWindow } = require('./windows/metronome_window');
 const { registerIpcHandlers } = require('./ipc/handlers');
 const { initServices } = require('./bootstrap/init_services');
 const { setAppMenu } = require('./menus/app_menu');
 
 let mainWindow;
+let libraryWindow;
 let metronomeWindow;
 
 app.whenReady().then(async () => {
@@ -15,7 +17,36 @@ app.whenReady().then(async () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       mainWindow = window;
     }
+    window.on('closed', () => {
+      if (mainWindow === window) {
+        mainWindow = null;
+      }
+    });
     return window;
+  };
+  const openReaderWindow = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.focus();
+      return mainWindow;
+    }
+    mainWindow = createMainWindow();
+    mainWindow.on('closed', () => {
+      if (mainWindow) {
+        mainWindow = null;
+      }
+    });
+    return mainWindow;
+  };
+  const openLibraryWindow = () => {
+    if (libraryWindow && !libraryWindow.isDestroyed()) {
+      libraryWindow.focus();
+      return libraryWindow;
+    }
+    libraryWindow = createLibraryWindow();
+    libraryWindow.on('closed', () => {
+      libraryWindow = null;
+    });
+    return libraryWindow;
   };
   const openMetronomeWindow = () => {
     if (metronomeWindow && !metronomeWindow.isDestroyed()) {
@@ -29,9 +60,14 @@ app.whenReady().then(async () => {
     return metronomeWindow;
   };
 
-  mainWindow = createAndTrackWindow();
-  setAppMenu({ onOpenWindow: createAndTrackWindow });
-  registerIpcHandlers({ window: mainWindow, services, onOpenMetronomeWindow: openMetronomeWindow });
+  libraryWindow = openLibraryWindow();
+  setAppMenu({ onOpenWindow: createAndTrackWindow, onOpenLibraryWindow: openLibraryWindow });
+  registerIpcHandlers({
+    window: libraryWindow,
+    services,
+    onOpenMetronomeWindow: openMetronomeWindow,
+    onOpenReaderWindow: openReaderWindow
+  });
 
   services.library.on('changed', async () => {
     BrowserWindow.getAllWindows().forEach((window) => {
@@ -43,7 +79,7 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createAndTrackWindow();
+      libraryWindow = openLibraryWindow();
     }
   });
 });

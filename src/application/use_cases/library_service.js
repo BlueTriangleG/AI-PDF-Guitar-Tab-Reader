@@ -4,47 +4,142 @@ const fs = require('fs');
 
 function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, getDefaultLibraryPath }) {
   const emitter = new EventEmitter();
-  let libraryRoot = null;
-  let activeWatcher = null;
+  let internalRoot = null;
+  let linkedSources = [];
+  const activeWatchers = new Map();
+
+  function normalizeRoot(root) {
+    if (!root) return '';
+    return root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  }
+
+  function getAllRoots() {
+    const roots = [internalRoot, ...linkedSources.map((source) => source.path)];
+    return roots.filter(Boolean);
+  }
 
   async function init() {
-    const storedRoot = libraryRepo.getSetting('library_root');
-    libraryRoot = storedRoot || getDefaultLibraryPath();
-    if (storedRoot) {
+    const storedInternal = libraryRepo.getSetting('library_internal_root');
+    const legacyRoot = libraryRepo.getSetting('library_root');
+    internalRoot = storedInternal || getDefaultLibraryPath();
+    if (storedInternal) {
       try {
-        await fs.promises.access(storedRoot, fs.constants.R_OK);
+        await fs.promises.access(storedInternal, fs.constants.R_OK);
       } catch (error) {
-        libraryRoot = getDefaultLibraryPath();
+        internalRoot = getDefaultLibraryPath();
       }
     }
-    await fileScanner.ensureDirectory(libraryRoot);
-    libraryRepo.setSetting('library_root', libraryRoot);
+    await fileScanner.ensureDirectory(internalRoot);
+    libraryRepo.setSetting('library_internal_root', internalRoot);
+
+    if (legacyRoot && legacyRoot !== internalRoot) {
+      const now = new Date().toISOString();
+      libraryRepo.upsertSource({ path: legacyRoot, kind: 'linked', created_at: now });
+    }
+
+    linkedSources = libraryRepo.listSources().filter((source) => source.kind === 'linked');
     await scanLibrary();
-    startWatcher();
+    startWatchers();
   }
 
   function getLibraryRoot() {
-    return libraryRoot;
+    return internalRoot;
+  }
+
+  function listSources() {
+    return [
+      { path: internalRoot, kind: 'internal' },
+      ...linkedSources
+    ].filter((source) => source.path);
   }
 
   async function setLibraryRoot(newRoot) {
-    libraryRoot = newRoot;
-    await fileScanner.ensureDirectory(libraryRoot);
-    libraryRepo.setSetting('library_root', libraryRoot);
+    if (!newRoot) return;
+    internalRoot = newRoot;
+    await fileScanner.ensureDirectory(internalRoot);
+    libraryRepo.setSetting('library_internal_root', internalRoot);
     await scanLibrary();
-    startWatcher();
+    startWatchers();
     emitter.emit('changed');
   }
 
-  async function scanLibrary() {
-    if (!libraryRoot) return [];
-    const files = await fileScanner.listPdfFiles(libraryRoot);
-    libraryRepo.pruneMissing(files);
-    for (const filePath of files) {
-      await upsertFile(filePath);
+  async function addLinkedSource(folderPath) {
+    if (!folderPath || folderPath === internalRoot) return null;
+    try {
+      await fs.promises.access(folderPath, fs.constants.R_OK);
+    } catch (error) {
+      return null;
     }
+    const now = new Date().toISOString();
+    libraryRepo.upsertSource({ path: folderPath, kind: 'linked', created_at: now });
+    linkedSources = libraryRepo.listSources().filter((source) => source.kind === 'linked');
+    await scanLibrary();
+    startWatchers();
     emitter.emit('changed');
-    return files;
+    return folderPath;
+  }
+
+  async function removeLinkedSource(folderPath) {
+    if (!folderPath) return;
+    libraryRepo.deleteSource(folderPath);
+    linkedSources = libraryRepo.listSources().filter((source) => source.kind === 'linked');
+    await scanLibrary();
+    startWatchers();
+    emitter.emit('changed');
+  }
+
+  async function createFolder(folderName, parentPath = internalRoot) {
+    if (!internalRoot) return null;
+    const safeName = path.basename((folderName || '').trim());
+    if (!safeName) return null;
+    const base = parentPath && parentPath.startsWith(internalRoot) ? parentPath : internalRoot;
+    const targetPath = path.join(base, safeName);
+    await fileScanner.ensureDirectory(targetPath);
+    emitter.emit('changed');
+    return targetPath;
+  }
+
+  async function listFolders() {
+    if (!internalRoot) return [];
+    try {
+      return await fileScanner.listFolders(internalRoot);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async function scanLibrary() {
+    const roots = getAllRoots();
+    const filesByRoot = new Map();
+    for (const root of roots) {
+      try {
+        const files = await fileScanner.listPdfFiles(root);
+        filesByRoot.set(root, files);
+      } catch (error) {
+        // keep last known entries for unavailable roots
+      }
+    }
+
+    for (const [root, files] of filesByRoot.entries()) {
+      await pruneMissingForRoot(root, files);
+      for (const filePath of files) {
+        await upsertFile(filePath);
+      }
+    }
+
+    emitter.emit('changed');
+    return Array.from(filesByRoot.values()).flat();
+  }
+
+  async function pruneMissingForRoot(root, existingPaths) {
+    const normalized = normalizeRoot(root);
+    const docs = libraryRepo.listDocumentsByPrefix(`${normalized}%`);
+    const existingSet = new Set(existingPaths);
+    for (const doc of docs) {
+      if (!existingSet.has(doc.file_path)) {
+        libraryRepo.deleteByPath(doc.file_path);
+      }
+    }
   }
 
   async function upsertFile(filePath) {
@@ -77,30 +172,40 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     libraryRepo.deleteByPath(filePath);
   }
 
-  function startWatcher() {
-    if (!libraryRoot) return;
-    if (activeWatcher) {
-      activeWatcher.close();
-    }
-    activeWatcher = watcher.watch(libraryRoot, {
-      onAdd: async (filePath) => {
-        await upsertFile(filePath);
-        emitter.emit('changed');
-      },
-      onChange: async (filePath) => {
-        await upsertFile(filePath);
-        emitter.emit('changed');
-      },
-      onRemove: async (filePath) => {
-        await removeFile(filePath);
-        emitter.emit('changed');
+  function startWatchers() {
+    const roots = getAllRoots();
+    for (const [root, active] of activeWatchers.entries()) {
+      if (!roots.includes(root)) {
+        active.close();
+        activeWatchers.delete(root);
       }
-    });
+    }
+    for (const root of roots) {
+      if (activeWatchers.has(root)) continue;
+      const nextWatcher = watcher.watch(root, {
+        onAdd: async (filePath) => {
+          await upsertFile(filePath);
+          emitter.emit('changed');
+        },
+        onChange: async (filePath) => {
+          await upsertFile(filePath);
+          emitter.emit('changed');
+        },
+        onRemove: async (filePath) => {
+          await removeFile(filePath);
+          emitter.emit('changed');
+        }
+      });
+      activeWatchers.set(root, nextWatcher);
+    }
   }
 
-  async function importFiles(filePaths) {
-    if (!libraryRoot) return [];
-    const copied = await fileScanner.copyPdfFiles(filePaths, libraryRoot);
+  async function importFiles(filePaths, targetFolder = internalRoot) {
+    if (!internalRoot) return [];
+    const destination = targetFolder && targetFolder.startsWith(internalRoot)
+      ? targetFolder
+      : internalRoot;
+    const copied = await fileScanner.copyPdfFiles(filePaths, destination);
     for (const filePath of copied) {
       await upsertFile(filePath);
     }
@@ -110,6 +215,16 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
 
   function listDocuments() {
     return libraryRepo.listDocuments();
+  }
+
+  function listRecentDocuments(limit) {
+    return libraryRepo.listRecentDocuments(limit);
+  }
+
+  function listDocumentsBySource(sourcePath) {
+    if (!sourcePath) return [];
+    const prefix = normalizeRoot(sourcePath);
+    return libraryRepo.listDocumentsByPrefix(`${prefix}%`);
   }
 
   function getSetting(key) {
@@ -137,10 +252,17 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
   return {
     init,
     getLibraryRoot,
+    listSources,
     setLibraryRoot,
+    addLinkedSource,
+    removeLinkedSource,
+    createFolder,
+    listFolders,
     scanLibrary,
     importFiles,
     listDocuments,
+    listRecentDocuments,
+    listDocumentsBySource,
     getSetting,
     setSetting,
     saveReadingState,

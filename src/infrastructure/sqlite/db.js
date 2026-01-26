@@ -19,6 +19,13 @@ function initDb() {
       value TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS library_sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT UNIQUE,
+      kind TEXT,
+      created_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS documents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT,

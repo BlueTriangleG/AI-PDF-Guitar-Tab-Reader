@@ -17,6 +17,11 @@ function formatCount(count) {
   return `${count} Scores`;
 }
 
+function basenameForPath(value) {
+  if (!value) return '';
+  return value.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || value;
+}
+
 function useMetronome({ bpm, timeSignature, subdivision, countInBars, active, onPulse }) {
   const audioRef = useRef(null);
   const schedulerRef = useRef(null);
@@ -381,12 +386,248 @@ function MetronomeWindow() {
   );
 }
 
+function LibraryWindow() {
+  const ALL_VIEW = '__all__';
+  const [sources, setSources] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [recentDocs, setRecentDocs] = useState([]);
+  const [selectedView, setSelectedView] = useState(ALL_VIEW);
+  const [activeDocId, setActiveDocId] = useState(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sourcesReady, setSourcesReady] = useState(false);
+
+  const refreshSources = useCallback(async () => {
+    if (!api?.library) return;
+    const [nextSources, nextFolders, nextRecent] = await Promise.all([
+      api.library.listSources(),
+      api.library.listFolders(),
+      api.library.listRecent(10)
+    ]);
+    setSources(nextSources || []);
+    setFolders(nextFolders || []);
+    setRecentDocs(nextRecent || []);
+    setSourcesReady(true);
+  }, [api]);
+
+  const refreshDocuments = useCallback(async (view) => {
+    if (!api?.library) return;
+    setLoading(true);
+    let docs = [];
+    if (view === ALL_VIEW) {
+      docs = await api.library.listDocuments();
+    } else if (view) {
+      docs = await api.library.listDocumentsBySource(view);
+    }
+    setDocuments(docs || []);
+    setLoading(false);
+  }, [api]);
+
+  useEffect(() => {
+    refreshSources();
+    if (!api?.onLibraryChanged) return undefined;
+    const unsubscribe = api.onLibraryChanged(() => {
+      refreshSources();
+      refreshDocuments(selectedView);
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [api, refreshSources, refreshDocuments, selectedView]);
+
+  useEffect(() => {
+    refreshDocuments(selectedView);
+  }, [selectedView, refreshDocuments]);
+
+  const linkedSources = useMemo(
+    () => sources.filter((source) => source.kind === 'linked'),
+    [sources]
+  );
+
+  const folderEntries = useMemo(() => {
+    const seen = new Set();
+    const entries = [];
+    const add = (entry) => {
+      if (!entry || seen.has(entry)) return;
+      seen.add(entry);
+      entries.push(entry);
+    };
+    folders.forEach(add);
+    linkedSources.forEach((source) => add(source.path));
+    return entries.sort((a, b) => basenameForPath(a).localeCompare(basenameForPath(b)));
+  }, [folders, linkedSources]);
+
+  useEffect(() => {
+    if (!sourcesReady || selectedView === ALL_VIEW) return;
+    if (!folderEntries.includes(selectedView)) {
+      setSelectedView(ALL_VIEW);
+    }
+  }, [folderEntries, selectedView, sourcesReady]);
+
+  const handleAddFolder = useCallback(async () => {
+    if (!api?.library) return;
+    const linked = await api.library.linkFolder();
+    if (linked) {
+      await refreshSources();
+      setSelectedView(linked);
+    }
+  }, [api, refreshSources]);
+
+  const handleImportFiles = useCallback(async () => {
+    if (!api?.library) return;
+    await api.library.importFiles();
+    setSelectedView(ALL_VIEW);
+    await refreshDocuments(ALL_VIEW);
+  }, [api, refreshDocuments]);
+
+  const handleCreateFolder = useCallback(async (event) => {
+    event.preventDefault();
+    if (!api?.library) return;
+    const trimmed = newFolderName.trim();
+    if (!trimmed) return;
+    const created = await api.library.createFolder(trimmed);
+    setNewFolderName('');
+    await refreshSources();
+    if (created) setSelectedView(created);
+  }, [api, newFolderName, refreshSources]);
+
+  const handleOpenDoc = useCallback(async (doc) => {
+    if (!api?.library || !doc?.id) return;
+    setActiveDocId(doc.id);
+    await api.library.openDocument(doc.id);
+  }, [api]);
+
+  useEffect(() => {
+    if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
+    const offImport = api.onMenuImportPdf(() => handleImportFiles());
+    const offLink = api.onMenuLibraryLocation(() => handleAddFolder());
+    return () => {
+      if (offImport) offImport();
+      if (offLink) offLink();
+    };
+  }, [handleImportFiles, handleAddFolder]);
+
+  const activeLabel = useMemo(() => {
+    if (selectedView === ALL_VIEW) return 'My Library';
+    return basenameForPath(selectedView);
+  }, [selectedView]);
+
+  return (
+    <div className="library-window">
+      <header className="library-header">
+        <div className="library-title-block">
+          <div className="library-title">Library</div>
+          <div className="library-subtitle">All your scores, in one place.</div>
+        </div>
+        <div className="library-actions">
+          <button type="button" className="ghost" onClick={handleImportFiles}>
+            Import Files
+          </button>
+          <button type="button" className="ghost" onClick={handleAddFolder}>
+            Add Folder
+          </button>
+        </div>
+      </header>
+      <div className="library-body">
+        <aside className="library-sidebar">
+          <div className="library-section">
+            <div className="section-title">History</div>
+            <div className="recent-list">
+              {recentDocs.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  className={`recent-item ${activeDocId === doc.id ? 'active' : ''}`}
+                  onClick={() => handleOpenDoc(doc)}
+                >
+                  <span className="recent-title">{doc.title || 'Untitled'}</span>
+                  <span className="recent-meta">{basenameForPath(doc.file_path)}</span>
+                </button>
+              ))}
+              {!recentDocs.length && (
+                <div className="source-empty">No recent scores yet</div>
+              )}
+            </div>
+          </div>
+          <div className="library-section">
+            <div className="section-title">My Library</div>
+            <button
+              type="button"
+              className={`source-item ${selectedView === ALL_VIEW ? 'active' : ''}`}
+              onClick={() => setSelectedView(ALL_VIEW)}
+            >
+              <span className="source-name">All Scores</span>
+            </button>
+          </div>
+          <div className="library-section">
+            <div className="section-title">Folders</div>
+            <div className="folder-list">
+              {folderEntries.map((folder) => (
+                <button
+                  key={folder}
+                  type="button"
+                  className={`source-item compact ${selectedView === folder ? 'active' : ''}`}
+                  onClick={() => setSelectedView(folder)}
+                >
+                  <span className="source-name">{basenameForPath(folder)}</span>
+                </button>
+              ))}
+              {!folderEntries.length && (
+                <div className="source-empty">No folders yet</div>
+              )}
+            </div>
+            <form className="folder-create" onSubmit={handleCreateFolder}>
+              <input
+                type="text"
+                value={newFolderName}
+                placeholder="New folder name"
+                onChange={(event) => setNewFolderName(event.target.value)}
+              />
+              <button type="submit">Create</button>
+            </form>
+          </div>
+        </aside>
+        <section className="library-content">
+          <div className="library-content-head">
+            <div className="content-title">{activeLabel}</div>
+            <div className="content-path">
+              {selectedView === ALL_VIEW ? 'All locations' : basenameForPath(selectedView)}
+            </div>
+            <div className="content-meta">{formatCount(documents.length)}</div>
+          </div>
+          <div className="library-docs">
+            {loading && <div className="empty">Loading library...</div>}
+            {!loading && documents.length === 0 && (
+              <div className="empty">Import scores to get started.</div>
+            )}
+            {!loading && documents.map((doc) => (
+              <button
+                key={doc.id}
+                type="button"
+                className={`library-card ${activeDocId === doc.id ? 'active' : ''}`}
+                onClick={() => handleOpenDoc(doc)}
+              >
+                <div className="library-card-title">{doc.title || 'Untitled'}</div>
+                <div className="library-card-meta">
+                  <span>{doc.page_count || '--'} pages</span>
+                  <span>{basenameForPath(doc.file_path)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function MainApp() {
   const MIN_ZOOM = 0.1;
   const MAX_ZOOM = 3;
   const PAGE_GAP = 12;
   const metronomeIcon = `${import.meta.env.BASE_URL}icons/Metronome%20Icon.png`;
-  const { documents, libraryRoot, loading, chooseLibraryRoot, importFiles } = useLibrary(api);
+  const { documents, libraryRoot, loading, chooseLibraryRoot, importFiles, refresh } = useLibrary(api);
   const [search, setSearch] = useState('');
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -818,6 +1059,18 @@ function MainApp() {
     setSinglePageIndex(doc.page_index || 0);
   }, [setSelectedDoc, setSinglePageIndex]);
 
+  const handleOpenDocById = useCallback(async (docId) => {
+    if (!docId) return;
+    let nextDoc = documents.find((doc) => doc.id === docId);
+    if (!nextDoc) {
+      const result = await refresh();
+      nextDoc = result?.documents?.find((doc) => doc.id === docId) || null;
+    }
+    if (nextDoc) {
+      handleSelect(nextDoc);
+    }
+  }, [documents, refresh, handleSelect]);
+
   const handleImport = useCallback(async () => {
     const result = await importFiles();
     const importedPaths = result?.importedPaths || [];
@@ -838,7 +1091,17 @@ function MainApp() {
       if (offImport) offImport();
       if (offLocation) offLocation();
     };
-  }, [handleImport, chooseLibraryRoot]);
+  }, [api, handleImport, chooseLibraryRoot]);
+
+  useEffect(() => {
+    if (!api?.onReaderOpenDocument) return undefined;
+    const unsubscribe = api.onReaderOpenDocument((docId) => {
+      handleOpenDocById(docId);
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [api, handleOpenDocById]);
 
   useEffect(() => {
     if (pageCount === 0) return;
@@ -1215,7 +1478,9 @@ function MainApp() {
 
 function AppRoot() {
   const view = getAppView();
-  return view === 'metronome' ? <MetronomeWindow /> : <MainApp />;
+  if (view === 'metronome') return <MetronomeWindow />;
+  if (view === 'library') return <LibraryWindow />;
+  return <MainApp />;
 }
 
 export default AppRoot;

@@ -7,7 +7,7 @@ function sendToFocused(channel) {
   }
 }
 
-function setAppMenu({ onOpenWindow } = {}) {
+function setAppMenu({ onOpenWindow, onOpenLibraryWindow } = {}) {
   const isMac = process.platform === 'darwin';
   const newWindowItem = {
     label: 'Open New Window',
@@ -15,6 +15,13 @@ function setAppMenu({ onOpenWindow } = {}) {
     enabled: Boolean(onOpenWindow),
     click: () => {
       if (onOpenWindow) onOpenWindow();
+    }
+  };
+  const libraryWindowItem = {
+    label: 'Open Library',
+    enabled: Boolean(onOpenLibraryWindow),
+    click: () => {
+      if (onOpenLibraryWindow) onOpenLibraryWindow();
     }
   };
 
@@ -44,7 +51,7 @@ function setAppMenu({ onOpenWindow } = {}) {
           click: () => sendToFocused('menu:import-pdf')
         },
         {
-          label: 'Library Location...',
+          label: 'Add Folder...',
           accelerator: 'Shift+CmdOrCtrl+L',
           click: () => sendToFocused('menu:library-location')
         },
@@ -93,6 +100,7 @@ function setAppMenu({ onOpenWindow } = {}) {
       label: 'Window',
       submenu: [
         newWindowItem,
+        libraryWindowItem,
         { type: 'separator' },
         { role: 'minimize' },
         { role: 'zoom' },

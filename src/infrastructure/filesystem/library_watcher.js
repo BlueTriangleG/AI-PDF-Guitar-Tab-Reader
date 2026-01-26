@@ -6,13 +6,8 @@ function isPdf(filePath) {
 }
 
 function createLibraryWatcher() {
-  let watcher = null;
-
   function watch(rootPath, handlers) {
-    if (watcher) {
-      watcher.close();
-    }
-    watcher = chokidar.watch(rootPath, {
+    const watcher = chokidar.watch(rootPath, {
       ignoreInitial: true,
       awaitWriteFinish: {
         stabilityThreshold: 750,
