@@ -170,6 +170,31 @@ button.accent {
   -webkit-app-region: no-drag;
 }
 
+.library-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.library-toggle {
+  -webkit-app-region: no-drag;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.95);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 16px rgba(28, 24, 20, 0.08);
+  color: var(--ink);
+}
+
+.library-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
 .library-title {
   font-weight: 600;
   font-size: 13px;
@@ -761,7 +786,7 @@ button.accent {
 }
 
 .library-window .content-section.scores .library-items.grid {
-  grid-template-columns: repeat(4, minmax(200px, 230px));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 230px));
   justify-content: start;
 }
 
@@ -787,13 +812,13 @@ button.accent {
 
 @media (max-width: 1200px) {
   .library-window .content-section.scores .library-items.grid {
-    grid-template-columns: repeat(3, minmax(200px, 230px));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 230px));
   }
 }
 
 @media (max-width: 960px) {
   .library-window .content-section.scores .library-items.grid {
-    grid-template-columns: repeat(2, minmax(190px, 220px));
+    grid-template-columns: repeat(auto-fill, minmax(190px, 220px));
   }
 }
 
@@ -875,6 +900,50 @@ button.accent {
   border-radius: 6px 6px 2px 2px;
   background: linear-gradient(145deg, rgba(245, 214, 162, 0.95), rgba(230, 184, 120, 0.95));
   box-shadow: inset 0 0 0 1px rgba(96, 64, 24, 0.1);
+}
+
+/* Linked folder icon - blue/teal color scheme */
+.library-window .item-icon.folder-linked {
+  background: linear-gradient(145deg, rgba(132, 180, 220, 0.9), rgba(90, 145, 185, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(24, 64, 96, 0.15);
+}
+
+.library-window .item-icon.folder-linked::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 6px;
+  width: 26px;
+  height: 12px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(145deg, rgba(162, 200, 235, 0.95), rgba(120, 170, 210, 0.95));
+  box-shadow: inset 0 0 0 1px rgba(24, 64, 96, 0.12);
+}
+
+/* Link badge icon on linked folder */
+.library-window .item-icon.folder-linked::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235a91b9' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
+  background-size: 10px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Linked folders can't be dragged */
+.library-window .folder-entry.linked {
+  cursor: default;
+}
+
+.library-window .folder-entry.linked[draggable="false"] {
+  cursor: pointer;
 }
 
 .library-window .item-title {
@@ -1683,6 +1752,31 @@ button.accent {
   background: rgba(255, 255, 255, 0.6);
 }
 
+.loading-spinner-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 239, 227, 0.6);
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .empty-state {
   position: absolute;
   inset: 0;
@@ -2038,9 +2132,22 @@ button.accent {
   background: #a33;
 }
 
-/* Selected folder entry */
-.library-window .folder-entry.selected .item-icon {
-  box-shadow: 0 0 0 3px var(--accent), 0 8px 16px rgba(195, 104, 60, 0.25);
+.selection-actions button.accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+.selection-actions button.accent:hover {
+  background: var(--accent-dark);
+}
+
+/* Selected folder entry - disable hover animation */
+.library-window .folder-entry.selected .item-icon,
+.library-window .folder-entry.selected:hover .item-icon,
+.library-window .content-section.folders .folder-entry.selected .item-icon,
+.library-window .content-section.folders .folder-entry.selected:hover .item-icon {
+  transform: none !important;
+  box-shadow: 0 0 0 3px var(--accent), 0 8px 16px rgba(195, 104, 60, 0.25) !important;
 }
 
 .library-window .folder-entry.selected .item-title {
@@ -2048,34 +2155,17 @@ button.accent {
   font-weight: 600;
 }
 
-/* Selected document card */
-.library-window .item-card.doc-item.selected {
+/* Selected document card - disable hover animation */
+.library-window .item-card.doc-item.selected,
+.library-window .item-card.doc-item.selected:hover {
+  transform: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent), 0 12px 24px rgba(195, 104, 60, 0.2);
 }
 
-.library-window .item-card.doc-item.selected::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 2px 6px rgba(195, 104, 60, 0.4);
-}
-
-.library-window .item-card.doc-item.selected::after {
-  content: "";
-  position: absolute;
-  top: 13px;
-  right: 13px;
-  width: 10px;
-  height: 5px;
-  border-left: 2px solid #fff;
-  border-bottom: 2px solid #fff;
-  transform: rotate(-45deg);
+.library-window .item-card.doc-item.selected .doc-preview img,
+.library-window .item-card.doc-item.selected:hover .doc-preview img {
+  transform: none;
 }
 
 .library-window .item-card.doc-item {
@@ -2110,24 +2200,49 @@ button.accent {
   box-shadow: 0 10px 18px rgba(28, 24, 20, 0.06);
 }
 
-/* Selected items should not have hover animation either */
-.library-window .item-card.doc-item.selected:hover {
-  transform: none;
-}
-
-.library-window .item-card.doc-item.selected:hover .doc-preview img {
-  transform: none;
-}
-
-/* Keep selected folder box-shadow on hover, just disable transform */
-.library-window .folder-entry.selected:hover .item-icon {
-  transform: none;
-}
-
-/* List view: disable hover animation for selected folders */
+/* List view: selected folders - disable hover animation */
+.library-window .library-items.list .folder-entry.selected,
 .library-window .library-items.list .folder-entry.selected:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent), 0 10px 18px rgba(195, 104, 60, 0.15);
+  transform: none;
+}
+
+/* Folder drag and drop styles */
+.library-window .folder-entry.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.library-window .folder-entry.drop-target {
+  background: rgba(195, 104, 60, 0.1);
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 2px var(--accent), inset 0 0 12px rgba(195, 104, 60, 0.15);
+}
+
+.library-window .folder-entry.drop-target .item-icon {
+  transform: scale(1.1);
+  filter: brightness(1.1);
+}
+
+.library-window .library-items.list .folder-entry.dragging {
+  opacity: 0.5;
+}
+
+.library-window .library-items.list .folder-entry.drop-target {
+  background: rgba(195, 104, 60, 0.08);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Document drag styles */
+.library-window .item-card.doc-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.library-window .library-items.list .item-card.doc-item.dragging {
+  opacity: 0.5;
 }
 
 /* Context menu */
@@ -2183,10 +2298,66 @@ button.accent {
   background: rgba(204, 68, 68, 0.1);
 }
 
+.context-menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.context-menu-item .shortcut {
+  font-size: 11px;
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}
+
 .context-menu-separator {
   height: 1px;
   margin: 4px 8px;
   background: var(--border);
+}
+
+/* Clipboard state indicators */
+.library-window .item-card.doc-item.clipboard-copy {
+  border-style: dashed;
+  border-color: var(--accent-cool);
+  opacity: 0.85;
+}
+
+.library-window .item-card.doc-item.clipboard-cut {
+  border-style: dashed;
+  border-color: var(--accent);
+  opacity: 0.6;
+}
+
+.library-window .folder-entry.clipboard-copy .item-icon {
+  outline: 2px dashed var(--accent-cool);
+  outline-offset: 2px;
+  opacity: 0.85;
+}
+
+.library-window .folder-entry.clipboard-cut .item-icon {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+  opacity: 0.6;
+}
+
+.library-window .library-items.list .folder-entry.clipboard-copy {
+  border-style: dashed;
+  border-color: var(--accent-cool);
+  opacity: 0.85;
+}
+
+.library-window .library-items.list .folder-entry.clipboard-cut {
+  border-style: dashed;
+  border-color: var(--accent);
+  opacity: 0.6;
 }
 
 /* Popup dialog */

@@ -240,6 +240,223 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     return { error: 'Cannot delete this folder' };
   }
 
+  async function copyDocument(docId, targetFolderPath) {
+    if (!docId || !targetFolderPath) {
+      return { error: 'Invalid parameters' };
+    }
+
+    const doc = libraryRepo.getDocumentById(docId);
+    if (!doc) {
+      return { error: 'Document not found' };
+    }
+
+    const sourcePath = doc.file_path;
+    const fileName = path.basename(sourcePath);
+    let newPath = path.join(targetFolderPath, fileName);
+
+    // Check if target is under internal root
+    if (!isUnderRoot(targetFolderPath, internalRoot)) {
+      return { error: 'Can only copy files to internal library folders' };
+    }
+
+    // Generate unique name if file already exists
+    let counter = 1;
+    const ext = path.extname(fileName);
+    const baseName = path.basename(fileName, ext);
+    while (true) {
+      try {
+        await fs.promises.access(newPath);
+        // File exists, try with counter
+        newPath = path.join(targetFolderPath, `${baseName} (${counter})${ext}`);
+        counter++;
+      } catch (error) {
+        // File doesn't exist, we can use this path
+        break;
+      }
+    }
+
+    try {
+      // Ensure target folder exists
+      await fileScanner.ensureDirectory(targetFolderPath);
+
+      // Copy the file
+      await fs.promises.copyFile(sourcePath, newPath);
+
+      // Add to database
+      await upsertFile(newPath);
+
+      emitter.emit('changed');
+      return { copied: true, newPath };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  async function copyFolder(sourcePath, targetParentPath) {
+    if (!sourcePath || !targetParentPath) {
+      return { error: 'Invalid paths' };
+    }
+
+    // Target must be under internal root
+    if (!isUnderRoot(targetParentPath, internalRoot)) {
+      return { error: 'Can only copy folders to internal library' };
+    }
+
+    // Cannot copy folder into itself or its children
+    if (isUnderRoot(targetParentPath, sourcePath)) {
+      return { error: 'Cannot copy folder into itself' };
+    }
+
+    const folderName = path.basename(sourcePath);
+    let newPath = path.join(targetParentPath, folderName);
+
+    // Generate unique name if folder already exists
+    let counter = 1;
+    while (true) {
+      try {
+        await fs.promises.access(newPath);
+        newPath = path.join(targetParentPath, `${folderName} (${counter})`);
+        counter++;
+      } catch (error) {
+        break;
+      }
+    }
+
+    try {
+      // Copy folder recursively
+      await fs.promises.cp(sourcePath, newPath, { recursive: true });
+
+      // Scan and add all PDFs in the copied folder to database
+      const files = await fileScanner.listPdfFiles(newPath);
+      for (const filePath of files) {
+        await upsertFile(filePath);
+      }
+
+      emitter.emit('changed');
+      return { copied: true, newPath };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  async function moveDocument(docId, targetFolderPath) {
+    if (!docId || !targetFolderPath) {
+      return { error: 'Invalid parameters' };
+    }
+
+    const doc = libraryRepo.getDocumentById(docId);
+    if (!doc) {
+      return { error: 'Document not found' };
+    }
+
+    const sourcePath = doc.file_path;
+    const fileName = path.basename(sourcePath);
+    const newPath = path.join(targetFolderPath, fileName);
+
+    // Check if source is under internal root (can only move files within internal library)
+    if (!isUnderRoot(sourcePath, internalRoot)) {
+      return { error: 'Can only move files within internal library' };
+    }
+
+    // Check if target is under internal root
+    if (!isUnderRoot(targetFolderPath, internalRoot)) {
+      return { error: 'Can only move files to internal library folders' };
+    }
+
+    // Check if already in target folder
+    if (path.dirname(sourcePath) === targetFolderPath) {
+      return { error: 'File is already in this folder' };
+    }
+
+    // Check if destination already exists
+    try {
+      await fs.promises.access(newPath);
+      return { error: 'A file with this name already exists at the destination' };
+    } catch (error) {
+      // Destination doesn't exist, which is good
+    }
+
+    try {
+      // Ensure target folder exists
+      await fileScanner.ensureDirectory(targetFolderPath);
+
+      // Move the file
+      await fs.promises.rename(sourcePath, newPath);
+
+      // Update database: delete old entry and insert new one
+      libraryRepo.deleteById(docId);
+      await upsertFile(newPath);
+
+      emitter.emit('changed');
+      return { moved: true, newPath };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
+  async function moveFolder(sourcePath, targetParentPath) {
+    if (!sourcePath || !targetParentPath) {
+      return { error: 'Invalid paths' };
+    }
+
+    // Cannot move linked sources
+    const isLinked = linkedSources.some((s) => s.path === sourcePath);
+    if (isLinked) {
+      return { error: 'Cannot move linked folders' };
+    }
+
+    // Source must be under internal root
+    if (!isUnderRoot(sourcePath, internalRoot)) {
+      return { error: 'Can only move folders within internal library' };
+    }
+
+    // Target must be under internal root or a linked source
+    const targetBase = resolveFolderPath(targetParentPath);
+    if (!targetBase) {
+      return { error: 'Invalid target location' };
+    }
+
+    // Cannot move folder into itself or its children
+    if (isUnderRoot(targetParentPath, sourcePath)) {
+      return { error: 'Cannot move folder into itself' };
+    }
+
+    const folderName = path.basename(sourcePath);
+    const newPath = path.join(targetParentPath, folderName);
+
+    // Check if destination already exists
+    try {
+      await fs.promises.access(newPath);
+      return { error: 'A folder with this name already exists at the destination' };
+    } catch (error) {
+      // Destination doesn't exist, which is good
+    }
+
+    try {
+      // Ensure target parent exists
+      await fileScanner.ensureDirectory(targetParentPath);
+
+      // Move the folder
+      await fs.promises.rename(sourcePath, newPath);
+
+      // Update document paths in database
+      const oldPrefix = normalizeRoot(sourcePath);
+      const docs = libraryRepo.listDocumentsByPrefix(`${oldPrefix}%`);
+      for (const doc of docs) {
+        const relativePath = doc.file_path.substring(sourcePath.length);
+        const newFilePath = path.join(newPath, relativePath);
+        // Delete old entry and insert new one
+        libraryRepo.deleteById(doc.id);
+        await upsertFile(newFilePath);
+      }
+
+      emitter.emit('changed');
+      return { moved: true, newPath };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
+
   function startWatchers() {
     const roots = getAllRoots();
     for (const [root, active] of activeWatchers.entries()) {
@@ -334,6 +551,10 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     deleteDocument,
     deleteDocuments,
     deleteFolder,
+    moveFolder,
+    moveDocument,
+    copyDocument,
+    copyFolder,
     getSetting,
     setSetting,
     saveReadingState,

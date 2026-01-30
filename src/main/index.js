@@ -6,39 +6,35 @@ const { registerIpcHandlers } = require('./ipc/handlers');
 const { initServices } = require('./bootstrap/init_services');
 const { setAppMenu } = require('./menus/app_menu');
 
-let mainWindow;
 let libraryWindow;
 let metronomeWindow;
+const readerWindows = new Set();
 
 app.whenReady().then(async () => {
   const services = await initServices();
   const createAndTrackWindow = () => {
     const window = createMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      mainWindow = window;
-    }
+    readerWindows.add(window);
     window.on('closed', () => {
-      if (mainWindow === window) {
-        mainWindow = null;
-      }
+      readerWindows.delete(window);
     });
     return window;
   };
   const openReaderWindow = () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.focus();
-      return mainWindow;
-    }
-    mainWindow = createMainWindow();
-    mainWindow.on('closed', () => {
-      if (mainWindow) {
-        mainWindow = null;
-      }
+    // Always create a new reader window
+    const window = createMainWindow();
+    readerWindows.add(window);
+    window.on('closed', () => {
+      readerWindows.delete(window);
     });
-    return mainWindow;
+    return window;
   };
   const openLibraryWindow = () => {
     if (libraryWindow && !libraryWindow.isDestroyed()) {
+      if (libraryWindow.isMinimized()) {
+        libraryWindow.restore();
+      }
+      libraryWindow.show();
       libraryWindow.focus();
       return libraryWindow;
     }
@@ -66,7 +62,8 @@ app.whenReady().then(async () => {
     window: libraryWindow,
     services,
     onOpenMetronomeWindow: openMetronomeWindow,
-    onOpenReaderWindow: openReaderWindow
+    onOpenReaderWindow: openReaderWindow,
+    onOpenLibraryWindow: openLibraryWindow
   });
 
   services.library.on('changed', async () => {

@@ -2,7 +2,7 @@ const { BrowserWindow, ipcMain, dialog } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 
-function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenReaderWindow }) {
+function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenReaderWindow, onOpenLibraryWindow }) {
   const { library, pdfService } = services;
 
   ipcMain.handle('library:list', async () => library.listDocuments());
@@ -67,6 +67,22 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
 
   ipcMain.handle('library:deleteFolder', async (_event, folderPath) => {
     return library.deleteFolder(folderPath);
+  });
+
+  ipcMain.handle('library:moveFolder', async (_event, sourcePath, targetParentPath) => {
+    return library.moveFolder(sourcePath, targetParentPath);
+  });
+
+  ipcMain.handle('library:moveDocument', async (_event, docId, targetFolderPath) => {
+    return library.moveDocument(docId, targetFolderPath);
+  });
+
+  ipcMain.handle('library:copyDocument', async (_event, docId, targetFolderPath) => {
+    return library.copyDocument(docId, targetFolderPath);
+  });
+
+  ipcMain.handle('library:copyFolder', async (_event, sourcePath, targetParentPath) => {
+    return library.copyFolder(sourcePath, targetParentPath);
   });
 
   ipcMain.handle('library:importFilesTo', async (_event, filePaths, targetFolder) => {
@@ -163,6 +179,13 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
   ipcMain.handle('window:openMetronome', async () => {
     if (onOpenMetronomeWindow) {
       onOpenMetronomeWindow();
+    }
+    return true;
+  });
+
+  ipcMain.handle('window:openLibrary', async () => {
+    if (onOpenLibraryWindow) {
+      onOpenLibraryWindow();
     }
     return true;
   });

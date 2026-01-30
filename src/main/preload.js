@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('api', {
     unlinkFolder: (folderPath) => ipcRenderer.invoke('library:unlinkFolder', folderPath),
     deleteDocuments: (docIds, alsoDeleteFiles) => ipcRenderer.invoke('library:deleteDocuments', docIds, alsoDeleteFiles),
     deleteFolder: (folderPath) => ipcRenderer.invoke('library:deleteFolder', folderPath),
+    moveFolder: (sourcePath, targetParentPath) => ipcRenderer.invoke('library:moveFolder', sourcePath, targetParentPath),
+    moveDocument: (docId, targetFolderPath) => ipcRenderer.invoke('library:moveDocument', docId, targetFolderPath),
+    copyDocument: (docId, targetFolderPath) => ipcRenderer.invoke('library:copyDocument', docId, targetFolderPath),
+    copyFolder: (sourcePath, targetParentPath) => ipcRenderer.invoke('library:copyFolder', sourcePath, targetParentPath),
     importFilesTo: (filePaths, targetFolder) => ipcRenderer.invoke('library:importFilesTo', filePaths, targetFolder),
     handleDroppedPaths: (paths, targetFolder) => ipcRenderer.invoke('library:handleDroppedPaths', paths, targetFolder),
     openDocument: (docId) => ipcRenderer.invoke('library:openDocument', docId)
@@ -37,7 +41,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   window: {
     setTrafficLights: (visible) => ipcRenderer.invoke('window:setTrafficLights', visible),
-    openMetronome: () => ipcRenderer.invoke('window:openMetronome')
+    openMetronome: () => ipcRenderer.invoke('window:openMetronome'),
+    openLibrary: () => ipcRenderer.invoke('window:openLibrary')
   },
   fileUrlFromPath: (filePath) => pathToFileURL(filePath).toString(),
   getPathForFile: (file) => webUtils.getPathForFile(file),

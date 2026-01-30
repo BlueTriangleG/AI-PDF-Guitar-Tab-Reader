@@ -508,6 +508,10 @@ function LibraryWindow() {
   const [contextMenu, setContextMenu] = useState(null);
   const [newFolderPopup, setNewFolderPopup] = useState(false);
   const [newFolderInput, setNewFolderInput] = useState('');
+  const [draggedFolder, setDraggedFolder] = useState(null);
+  const [draggedDoc, setDraggedDoc] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
+  const [clipboard, setClipboard] = useState({ docs: [], folders: [], mode: null }); // mode: 'copy' or 'cut'
   const newFolderInputRef = useRef(null);
 
   const closeContextMenu = useCallback(() => {
@@ -673,13 +677,15 @@ function LibraryWindow() {
   }, [allDocuments, selectedView, internalRoot]);
 
   const folderItems = useMemo(() => {
+    const linkedPaths = new Set(linkedSources.map((s) => s.path));
     return currentFolders.map((folder) => ({
       path: folder,
       label: basenameForPath(folder),
-      count: allDocuments.filter((doc) => isUnderRoot(doc.file_path, folder)).length
+      count: allDocuments.filter((doc) => isUnderRoot(doc.file_path, folder)).length,
+      isLinked: linkedPaths.has(folder)
     }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [currentFolders, allDocuments]);
+  }, [currentFolders, allDocuments, linkedSources]);
 
   const docItems = useMemo(() => {
     return currentDocs.map((doc) => ({
@@ -945,27 +951,6 @@ function LibraryWindow() {
     await refreshSubfolders(selectedView);
   }, [api, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView]);
 
-  const handleContextMenuAction = useCallback(async (action) => {
-    if (!api?.library) return;
-
-    const menuData = contextMenu;
-    closeContextMenu();
-
-    if (!menuData) return;
-
-    if (action === 'delete' && menuData.type === 'folder') {
-      const confirmed = window.confirm(`Delete "${menuData.label}"? This cannot be undone.`);
-      if (confirmed) {
-        await api.library.deleteFolder(menuData.target);
-        clearSelection();
-        await refreshSources();
-        await refreshSubfolders(selectedView);
-      }
-    } else if (action === 'newFolder') {
-      openNewFolderPopup();
-    }
-  }, [api, contextMenu, clearSelection, refreshSources, refreshSubfolders, selectedView, closeContextMenu, openNewFolderPopup]);
-
   const handleCreateNewFolder = useCallback(async () => {
     if (!api?.library) return;
     const name = newFolderInput.trim();
@@ -981,6 +966,215 @@ function LibraryWindow() {
 
   const hasSelection = selectedDocs.size > 0 || selectedFolders.size > 0;
   const selectionCount = selectedDocs.size + selectedFolders.size;
+
+  // Folder drag and drop handlers
+  const handleFolderDragStart = useCallback((e, folderPath) => {
+    setDraggedFolder(folderPath);
+    setDraggedDoc(null);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', folderPath);
+  }, []);
+
+  const handleFolderDragEnd = useCallback(() => {
+    setDraggedFolder(null);
+    setDropTarget(null);
+  }, []);
+
+  // Document drag handlers
+  const handleDocDragStart = useCallback((e, docId) => {
+    setDraggedDoc(docId);
+    setDraggedFolder(null);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', `doc:${docId}`);
+  }, []);
+
+  const handleDocDragEnd = useCallback(() => {
+    setDraggedDoc(null);
+    setDropTarget(null);
+  }, []);
+
+  const handleFolderDragOver = useCallback((e, folderPath) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Accept both folder and document drags
+    if ((draggedFolder && draggedFolder !== folderPath) || draggedDoc) {
+      e.dataTransfer.dropEffect = 'move';
+      setDropTarget(folderPath);
+    }
+  }, [draggedFolder, draggedDoc]);
+
+  const handleFolderDragLeave = useCallback((e) => {
+    e.preventDefault();
+    setDropTarget(null);
+  }, []);
+
+  const handleFolderDrop = useCallback(async (e, targetFolderPath) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(null);
+
+    // Handle document drop
+    if (draggedDoc) {
+      if (!api?.library?.moveDocument) {
+        setDraggedDoc(null);
+        return;
+      }
+
+      const result = await api.library.moveDocument(draggedDoc, targetFolderPath);
+      setDraggedDoc(null);
+
+      if (result.error) {
+        alert(result.error);
+        return;
+      }
+
+      await refreshSources();
+      await refreshSubfolders(selectedView);
+      return;
+    }
+
+    // Handle folder drop
+    if (!draggedFolder || draggedFolder === targetFolderPath) {
+      setDraggedFolder(null);
+      return;
+    }
+
+    // Check if trying to drop into itself or a child
+    if (targetFolderPath.startsWith(draggedFolder)) {
+      setDraggedFolder(null);
+      return;
+    }
+
+    if (!api?.library?.moveFolder) {
+      setDraggedFolder(null);
+      return;
+    }
+
+    const result = await api.library.moveFolder(draggedFolder, targetFolderPath);
+    setDraggedFolder(null);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    await refreshSources();
+    await refreshSubfolders(selectedView);
+  }, [api, draggedFolder, draggedDoc, refreshSources, refreshSubfolders, selectedView]);
+
+  // Clipboard handlers
+  const handleCopy = useCallback(() => {
+    if (!hasSelection) return;
+    setClipboard({
+      docs: Array.from(selectedDocs),
+      folders: Array.from(selectedFolders),
+      mode: 'copy'
+    });
+  }, [hasSelection, selectedDocs, selectedFolders]);
+
+  const handleCut = useCallback(() => {
+    if (!hasSelection) return;
+    setClipboard({
+      docs: Array.from(selectedDocs),
+      folders: Array.from(selectedFolders),
+      mode: 'cut'
+    });
+  }, [hasSelection, selectedDocs, selectedFolders]);
+
+  const handlePaste = useCallback(async () => {
+    if (!clipboard.mode || (!clipboard.docs.length && !clipboard.folders.length)) return;
+    if (!api?.library) return;
+
+    const targetFolder = selectedView === ROOT_VIEW ? internalRoot : selectedView;
+    if (!targetFolder) return;
+
+    const isCut = clipboard.mode === 'cut';
+    let hasError = false;
+
+    // Paste documents
+    for (const docId of clipboard.docs) {
+      const result = isCut
+        ? await api.library.moveDocument(docId, targetFolder)
+        : await api.library.copyDocument(docId, targetFolder);
+      if (result.error) {
+        hasError = true;
+        alert(result.error);
+        break;
+      }
+    }
+
+    // Paste folders
+    if (!hasError) {
+      for (const folderPath of clipboard.folders) {
+        const result = isCut
+          ? await api.library.moveFolder(folderPath, targetFolder)
+          : await api.library.copyFolder(folderPath, targetFolder);
+        if (result.error) {
+          hasError = true;
+          alert(result.error);
+          break;
+        }
+      }
+    }
+
+    // Clear clipboard if cut
+    if (isCut) {
+      setClipboard({ docs: [], folders: [], mode: null });
+    }
+
+    clearSelection();
+    await refreshSources();
+    await refreshSubfolders(selectedView);
+  }, [api, clipboard, selectedView, internalRoot, clearSelection, refreshSources, refreshSubfolders]);
+
+  const hasClipboard = clipboard.mode && (clipboard.docs.length > 0 || clipboard.folders.length > 0);
+
+  const handleContextMenuAction = useCallback(async (action) => {
+    if (!api?.library) return;
+
+    const menuData = contextMenu;
+    closeContextMenu();
+
+    if (!menuData) return;
+
+    // Check if the right-clicked item is part of the current selection
+    const isInSelection = menuData.type === 'folder'
+      ? selectedFolders.has(menuData.target)
+      : menuData.type === 'doc'
+        ? selectedDocs.has(menuData.target)
+        : false;
+
+    // If right-clicked item is in selection, operate on all selected items
+    // Otherwise, operate on just the right-clicked item
+    const targetDocs = isInSelection ? Array.from(selectedDocs) : (menuData.type === 'doc' ? [menuData.target] : []);
+    const targetFolders = isInSelection ? Array.from(selectedFolders) : (menuData.type === 'folder' ? [menuData.target] : []);
+
+    if (action === 'copy') {
+      setClipboard({ docs: targetDocs, folders: targetFolders, mode: 'copy' });
+      clearSelection();
+    } else if (action === 'cut') {
+      setClipboard({ docs: targetDocs, folders: targetFolders, mode: 'cut' });
+      clearSelection();
+    } else if (action === 'paste') {
+      await handlePaste();
+    } else if (action === 'delete') {
+      const count = targetDocs.length + targetFolders.length;
+      const confirmed = window.confirm(`Delete ${count} item${count > 1 ? 's' : ''}? This cannot be undone.`);
+      if (confirmed) {
+        for (const folderPath of targetFolders) {
+          await api.library.deleteFolder(folderPath);
+        }
+        if (targetDocs.length > 0) {
+          await api.library.deleteDocuments(targetDocs, true);
+        }
+        clearSelection();
+        await refreshSources();
+        await refreshSubfolders(selectedView);
+      }
+    } else if (action === 'newFolder') {
+      openNewFolderPopup();
+    }
+  }, [api, contextMenu, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView, closeContextMenu, openNewFolderPopup, handlePaste]);
 
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
@@ -1016,11 +1210,20 @@ function LibraryWindow() {
         const allFolderPaths = filteredFolderItems.map((f) => f.path);
         setSelectedDocs(new Set(allDocIds));
         setSelectedFolders(new Set(allFolderPaths));
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'c' && hasSelection) {
+        e.preventDefault();
+        handleCopy();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'x' && hasSelection) {
+        e.preventDefault();
+        handleCut();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'v' && hasClipboard) {
+        e.preventDefault();
+        handlePaste();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [clearSelection, hasSelection, handleDeleteSelected, filteredDocItems, filteredFolderItems, contextMenu, closeContextMenu]);
+  }, [clearSelection, hasSelection, handleDeleteSelected, filteredDocItems, filteredFolderItems, contextMenu, closeContextMenu, handleCopy, handleCut, handlePaste, hasClipboard]);
 
   // Close context menu on click outside
   useEffect(() => {
@@ -1144,6 +1347,12 @@ function LibraryWindow() {
         </aside>
         <section
           className="library-content"
+          onClick={(e) => {
+            // Clear selection when clicking on blank area
+            if (!e.target.closest('.folder-entry') && !e.target.closest('.item-card')) {
+              clearSelection();
+            }
+          }}
           onContextMenu={(e) => {
             if (e.target === e.currentTarget || e.target.closest('.content-section')) {
               if (!e.target.closest('.folder-entry') && !e.target.closest('.item-card')) {
@@ -1171,17 +1380,6 @@ function LibraryWindow() {
                 <div className="content-title">{activeLabel}</div>
               </div>
               <div className="content-tools">
-                {hasSelection && (
-                  <div className="selection-actions">
-                    <span className="selection-count">{selectionCount} selected</span>
-                    <button type="button" className="ghost" onClick={clearSelection}>
-                      Cancel
-                    </button>
-                    <button type="button" className="danger" onClick={handleDeleteSelected}>
-                      Delete
-                    </button>
-                  </div>
-                )}
                 <div className="view-toggle" role="group" aria-label="View mode">
                   <button
                     type="button"
@@ -1201,7 +1399,7 @@ function LibraryWindow() {
               </div>
             </div>
             <div className="content-path">
-              {selectedView === ROOT_VIEW ? 'My Library' : selectedView}
+              {positionText}
             </div>
             <div className="content-meta">{formatItemCount(totalItemCount)}</div>
           </div>
@@ -1214,16 +1412,14 @@ function LibraryWindow() {
                   {filteredFolderItems.map((folder) => (
                     <div
                       key={folder.path}
-                      className={`folder-entry ${selectedFolders.has(folder.path) ? 'selected' : ''}`}
-                      onClick={(e) => {
-                        if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                          handleSelectFolder(folder.path, e);
-                        } else if (selectedFolders.size > 0 || selectedDocs.size > 0) {
-                          handleSelectFolder(folder.path, e);
-                        } else {
-                          setSelectedView(folder.path);
-                        }
-                      }}
+                      className={`folder-entry ${selectedFolders.has(folder.path) ? 'selected' : ''} ${draggedFolder === folder.path ? 'dragging' : ''} ${dropTarget === folder.path ? 'drop-target' : ''} ${folder.isLinked ? 'linked' : ''} ${clipboard.folders.includes(folder.path) ? `clipboard-${clipboard.mode}` : ''}`}
+                      draggable={!folder.isLinked}
+                      onDragStart={(e) => !folder.isLinked && handleFolderDragStart(e, folder.path)}
+                      onDragEnd={handleFolderDragEnd}
+                      onDragOver={(e) => handleFolderDragOver(e, folder.path)}
+                      onDragLeave={handleFolderDragLeave}
+                      onDrop={(e) => handleFolderDrop(e, folder.path)}
+                      onClick={(e) => handleSelectFolder(folder.path, e)}
                       onDoubleClick={() => setSelectedView(folder.path)}
                       onContextMenu={(e) => {
                         e.preventDefault();
@@ -1246,7 +1442,7 @@ function LibraryWindow() {
                       }}
                     >
                       <div className="folder-icon-wrap">
-                        <div className="item-icon folder" aria-hidden="true" />
+                        <div className={`item-icon ${folder.isLinked ? 'folder-linked' : 'folder'}`} aria-hidden="true" />
                       </div>
                       <div className="item-title">{folder.label}</div>
                     </div>
@@ -1260,33 +1456,34 @@ function LibraryWindow() {
                 <div className="content-section-title">Scores</div>
                 <div className={`library-items ${viewMode}`}>
                   {filteredDocItems.map((item) => (
-                    <button
+                    <div
                       key={item.doc.id}
-                      type="button"
-                      className={`item-card doc-item ${activeDocId === item.doc.id ? 'active' : ''} ${selectedDocs.has(item.doc.id) ? 'selected' : ''}`}
-                      onClick={(e) => {
-                        if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                          handleSelectDoc(item.doc, e);
-                        } else if (selectedDocs.size > 0 || selectedFolders.size > 0) {
-                          handleSelectDoc(item.doc, e);
-                        } else {
-                          handleOpenDoc(item.doc);
-                        }
-                      }}
+                      className={`item-card doc-item ${activeDocId === item.doc.id ? 'active' : ''} ${selectedDocs.has(item.doc.id) ? 'selected' : ''} ${draggedDoc === item.doc.id ? 'dragging' : ''} ${clipboard.docs.includes(item.doc.id) ? `clipboard-${clipboard.mode}` : ''}`}
+                      draggable
+                      onDragStart={(e) => handleDocDragStart(e, item.doc.id)}
+                      onDragEnd={handleDocDragEnd}
+                      onClick={(e) => handleSelectDoc(item.doc, e)}
                       onDoubleClick={() => handleOpenDoc(item.doc)}
                       onContextMenu={(e) => {
                         e.preventDefault();
-                        if (!selectedDocs.has(item.doc.id)) {
-                          handleSelectDoc(item.doc, e);
-                        }
+                        e.stopPropagation();
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          type: 'doc',
+                          target: item.doc.id,
+                          label: item.doc.title || 'Untitled'
+                        });
                       }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <DocPreview filePath={item.doc.file_path} label={item.doc.title || 'Preview'} />
                       <div className="item-title">{item.doc.title || 'Untitled'}</div>
                       <div className="item-meta">
                         <span>{item.doc.page_count || '--'} pages</span>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
                 {!filteredDocItems.length && (
@@ -1304,22 +1501,64 @@ function LibraryWindow() {
           onClick={(e) => e.stopPropagation()}
         >
           {contextMenu.type === 'blank' && (
-            <button
-              type="button"
-              className="context-menu-item"
-              onClick={() => handleContextMenuAction('newFolder')}
-            >
-              New Folder
-            </button>
+            <>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('newFolder')}
+              >
+                New Folder
+              </button>
+              {hasClipboard && (
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => handleContextMenuAction('paste')}
+                >
+                  <span>Paste</span>
+                  <span className="shortcut">⌘V</span>
+                </button>
+              )}
+            </>
           )}
-          {contextMenu.type === 'folder' && (
-            <button
-              type="button"
-              className="context-menu-item danger"
-              onClick={() => handleContextMenuAction('delete')}
-            >
-              Delete "{contextMenu.label}"
-            </button>
+          {(contextMenu.type === 'folder' || contextMenu.type === 'doc') && (
+            <>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('copy')}
+              >
+                <span>Copy</span>
+                <span className="shortcut">⌘C</span>
+              </button>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('cut')}
+              >
+                <span>Cut</span>
+                <span className="shortcut">⌘X</span>
+              </button>
+              {hasClipboard && (
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => handleContextMenuAction('paste')}
+                >
+                  <span>Paste</span>
+                  <span className="shortcut">⌘V</span>
+                </button>
+              )}
+              <div className="context-menu-divider" />
+              <button
+                type="button"
+                className="context-menu-item danger"
+                onClick={() => handleContextMenuAction('delete')}
+              >
+                <span>Delete</span>
+                <span className="shortcut">⌫</span>
+              </button>
+            </>
           )}
         </div>
       )}
@@ -1424,17 +1663,22 @@ function MainApp() {
 
   const computeFitScale = useCallback(() => {
     const baseWidth = pageBaseRef.current.width;
-    if (!baseWidth) return;
+    const baseHeight = pageBaseRef.current.height;
+    if (!baseWidth || !baseHeight) return;
     const container = viewMode === 'single' ? singleRef.current : canvasRef.current;
     const host = container || readerStageRef.current;
     if (!host) return;
     const padding = 16;
     const gapTotal = (clampedPagesPerView - 1) * PAGE_GAP;
-    const available = Math.max(host.clientWidth - padding, 200);
-    const usable = Math.max(available - gapTotal, 160);
-    const fit = usable / (baseWidth * clampedPagesPerView);
-    const minScale = clampedPagesPerView > 1 ? MIN_ZOOM : 1;
-    const nextScale = Math.min(Math.max(fit, minScale), MAX_ZOOM);
+    const availableWidth = Math.max(host.clientWidth - padding, 200);
+    const availableHeight = Math.max(host.clientHeight - padding, 200);
+    const usableWidth = Math.max(availableWidth - gapTotal, 160);
+    // Calculate scale to fit width and height
+    const fitWidth = usableWidth / (baseWidth * clampedPagesPerView);
+    const fitHeight = availableHeight / baseHeight;
+    // Use the smaller scale to ensure entire page fits in container
+    const fit = Math.min(fitWidth, fitHeight);
+    const nextScale = Math.min(Math.max(fit, MIN_ZOOM), MAX_ZOOM);
     setFitScale(nextScale);
     const contentWidth = baseWidth * nextScale * zoom * clampedPagesPerView + gapTotal;
     setIsCentered(contentWidth < host.clientWidth - 10);
@@ -1604,13 +1848,29 @@ function MainApp() {
   }, []);
 
   const toggleFocusMode = useCallback(() => {
-    setFocusMode((prev) => !prev);
+    setFocusMode((prev) => {
+      const next = !prev;
+      if (next) {
+        setSidebarPinned(false);
+        setSidebarHover(false);
+      } else {
+        setSidebarPinned(true);
+        setSidebarHover(false);
+      }
+      return next;
+    });
     setToolbarHover(false);
   }, []);
 
   const handleOpenMetronome = useCallback(() => {
     if (api?.window?.openMetronome) {
       api.window.openMetronome();
+    }
+  }, []);
+
+  const handleOpenLibrary = useCallback(() => {
+    if (api?.window?.openLibrary) {
+      api.window.openLibrary();
     }
   }, []);
 
@@ -1915,14 +2175,40 @@ function MainApp() {
           <div className="library-head">
             <div className="library-actions">
               <span className="library-title">{currentFolderName}</span>
-              <button
-                className={`pin-toggle ${sidebarPinned ? 'active' : ''}`}
-                onClick={toggleSidebarPinned}
-                aria-label={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-                title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-              >
-                <span className="pin-icon" aria-hidden="true" />
-              </button>
+              <div className="library-action-buttons">
+                <button
+                  className="library-toggle"
+                  onClick={handleOpenLibrary}
+                  aria-label="Open Library"
+                  title="Open Library"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h7v18H3z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-7v18h7z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinejoin="round"
+                    />
+                    <path d="M12 3v18" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  </svg>
+                </button>
+                <button
+                  className={`pin-toggle ${sidebarPinned ? 'active' : ''}`}
+                  onClick={toggleSidebarPinned}
+                  aria-label={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                  title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                >
+                  <span className="pin-icon" aria-hidden="true" />
+                </button>
+              </div>
             </div>
             <input
               id="search"
@@ -2120,7 +2406,11 @@ function MainApp() {
               onDoubleClick={handleDoubleClick}
               onWheel={handleWheelZoom}
             >
-              {pageLoading && <div className="empty">Rendering pages...</div>}
+              {pageLoading && (
+                <div className="loading-spinner-container">
+                  <div className="loading-spinner" />
+                </div>
+              )}
               {pdfError && <div className="empty">Failed to load PDF: {pdfError}</div>}
               {!pageLoading && !selectedDoc && (
                 <div className="empty-state">
@@ -2177,7 +2467,11 @@ function MainApp() {
                 onDoubleClick={handleDoubleClick}
                 onWheel={handleWheelZoom}
               >
-                {pageLoading && <div className="empty">Rendering pages...</div>}
+                {pageLoading && (
+                <div className="loading-spinner-container">
+                  <div className="loading-spinner" />
+                </div>
+              )}
                 {pdfError && <div className="empty">Failed to load PDF: {pdfError}</div>}
                 {!pageLoading && !selectedDoc && (
                   <div className="empty-state">
