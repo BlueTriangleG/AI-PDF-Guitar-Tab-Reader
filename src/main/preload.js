@@ -41,7 +41,8 @@ contextBridge.exposeInMainWorld('api', {
   window: {
     setTrafficLights: (visible) => ipcRenderer.invoke('window:setTrafficLights', visible),
     openMetronome: () => ipcRenderer.invoke('window:openMetronome'),
-    openLibrary: () => ipcRenderer.invoke('window:openLibrary')
+    openLibrary: () => ipcRenderer.invoke('window:openLibrary'),
+    openLibraryAt: (folderPath) => ipcRenderer.invoke('window:openLibraryAt', folderPath)
   },
   fileUrlFromPath: (filePath) => ipcRenderer.invoke('file:toUrl', filePath),
   fileReadAsDataUrl: (filePath) => ipcRenderer.invoke('file:readAsDataUrl', filePath),
@@ -65,5 +66,10 @@ contextBridge.exposeInMainWorld('api', {
     const handler = (_event, docId) => callback(docId);
     ipcRenderer.on('reader:open-document', handler);
     return () => ipcRenderer.removeListener('reader:open-document', handler);
+  },
+  onLibraryRevealFolder: (callback) => {
+    const handler = (_event, folderPath) => callback(folderPath);
+    ipcRenderer.on('library:reveal-folder', handler);
+    return () => ipcRenderer.removeListener('library:reveal-folder', handler);
   }
 });

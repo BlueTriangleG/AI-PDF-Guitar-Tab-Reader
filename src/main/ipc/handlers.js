@@ -210,6 +210,20 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
     }
     return true;
   });
+
+  ipcMain.handle('window:openLibraryAt', async (_event, folderPath) => {
+    if (!onOpenLibraryWindow) return false;
+    const target = onOpenLibraryWindow();
+    if (!target || target.isDestroyed()) return false;
+    const send = () => target.webContents.send('library:reveal-folder', folderPath || null);
+    if (target.webContents.isLoading()) {
+      target.webContents.once('did-finish-load', send);
+    } else {
+      send();
+    }
+    target.focus();
+    return true;
+  });
 }
 
 module.exports = { registerIpcHandlers };

@@ -487,6 +487,7 @@ function MetronomeWindow() {
 
 function LibraryWindow() {
   const ROOT_VIEW = '__root__';
+  const arrowDownIcon = `${import.meta.env.BASE_URL}icons/Arrow%20Down%20Icon.svg`;
   const [sources, setSources] = useState([]);
   const [rootFolders, setRootFolders] = useState([]);
   const [subfolders, setSubfolders] = useState([]);
@@ -501,6 +502,8 @@ function LibraryWindow() {
   const [sidebarFolders, setSidebarFolders] = useState([]);
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const [sortKey, setSortKey] = useState('last_opened');
+  const [sortDirection, setSortDirection] = useState('desc');
   const [selectedDocs, setSelectedDocs] = useState(new Set());
   const [selectedFolders, setSelectedFolders] = useState(new Set());
   const [lastSelectedDoc, setLastSelectedDoc] = useState(null);
@@ -513,6 +516,37 @@ function LibraryWindow() {
   const [dropTarget, setDropTarget] = useState(null);
   const [clipboard, setClipboard] = useState({ docs: [], folders: [], mode: null }); // mode: 'copy' or 'cut'
   const newFolderInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!api?.settings) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const [savedKey, savedDirection] = await Promise.all([
+          api.settings.get('library.sortKey'),
+          api.settings.get('library.sortDirection')
+        ]);
+        if (!active) return;
+        if (savedKey && ['added', 'name', 'last_opened'].includes(savedKey)) {
+          setSortKey(savedKey);
+        }
+        if (savedDirection && ['asc', 'desc'].includes(savedDirection)) {
+          setSortDirection(savedDirection);
+        }
+      } catch (error) {
+        // Ignore settings read errors
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (!api?.settings) return;
+    api.settings.set('library.sortKey', sortKey);
+    api.settings.set('library.sortDirection', sortDirection);
+  }, [api, sortKey, sortDirection]);
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
@@ -583,6 +617,22 @@ function LibraryWindow() {
       if (unsubscribe) unsubscribe();
     };
   }, [api, refreshSources, refreshSubfolders, selectedView]);
+
+  useEffect(() => {
+    if (!api?.onLibraryRevealFolder) return undefined;
+    const unsubscribe = api.onLibraryRevealFolder((folderPath) => {
+      if (!folderPath) {
+        setSelectedView(ROOT_VIEW);
+        clearSelection();
+        return;
+      }
+      setSelectedView(folderPath);
+      clearSelection();
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [api, clearSelection]);
 
   useEffect(() => {
     if (selectedView === ROOT_VIEW) {
@@ -709,6 +759,42 @@ function LibraryWindow() {
       return title.includes(searchTerm) || filename.includes(searchTerm);
     });
   }, [docItems, searchTerm]);
+
+  const sortedDocItems = useMemo(() => {
+    const toTimestamp = (value) => {
+      if (!value) return 0;
+      if (typeof value === 'number') return value;
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    const getSortValue = (item) => {
+      if (sortKey === 'added') {
+        return toTimestamp(item.doc.created_at || item.doc.file_mtime);
+      }
+      if (sortKey === 'last_opened') {
+        return toTimestamp(item.doc.last_opened);
+      }
+      return (item.label || basenameForPath(item.doc.file_path) || '').toLowerCase();
+    };
+
+    const sorted = [...filteredDocItems].sort((a, b) => {
+      const aVal = getSortValue(a);
+      const bVal = getSortValue(b);
+      let cmp = 0;
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        cmp = aVal.localeCompare(bVal);
+      } else {
+        cmp = (aVal || 0) - (bVal || 0);
+      }
+      if (cmp === 0) {
+        cmp = a.label.localeCompare(b.label);
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [filteredDocItems, sortKey, sortDirection]);
 
   const totalItemCount = filteredFolderItems.length + filteredDocItems.length;
 
@@ -1311,15 +1397,6 @@ function LibraryWindow() {
                 <div className="source-empty">No folders yet</div>
               )}
             </div>
-            <form className="folder-create" onSubmit={handleCreateFolder}>
-              <input
-                type="text"
-                value={newFolderName}
-                placeholder="New folder name"
-                onChange={(event) => setNewFolderName(event.target.value)}
-              />
-              <button type="submit">Create</button>
-            </form>
           </div>
           <div className="library-section">
             <div className="section-title">Position</div>
@@ -1396,6 +1473,26 @@ function LibraryWindow() {
                     List
                   </button>
                 </div>
+                <div className="sort-controls">
+                  <select
+                    aria-label="Sort scores"
+                    value={sortKey}
+                    onChange={(event) => setSortKey(event.target.value)}
+                  >
+                    <option value="added">Added</option>
+                    <option value="name">Name</option>
+                    <option value="last_opened">Last Opened</option>
+                  </select>
+                  <button
+                    type="button"
+                    className={`sort-toggle ${sortDirection === 'asc' ? 'asc' : 'desc'}`}
+                    onClick={() => setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                    aria-label={sortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
+                    title={sortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
+                  >
+                    <img src={arrowDownIcon} alt="" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="content-path">
@@ -1455,7 +1552,7 @@ function LibraryWindow() {
               <div className="content-section scores">
                 <div className="content-section-title">Scores</div>
                 <div className={`library-items ${viewMode}`}>
-                  {filteredDocItems.map((item) => (
+                  {sortedDocItems.map((item) => (
                     <div
                       key={item.doc.id}
                       className={`item-card doc-item ${activeDocId === item.doc.id ? 'active' : ''} ${selectedDocs.has(item.doc.id) ? 'selected' : ''} ${draggedDoc === item.doc.id ? 'dragging' : ''} ${clipboard.docs.includes(item.doc.id) ? `clipboard-${clipboard.mode}` : ''}`}
@@ -1599,9 +1696,13 @@ function MainApp() {
   const MAX_ZOOM = 3;
   const PAGE_GAP = 12;
   const metronomeIcon = `${import.meta.env.BASE_URL}icons/Metronome%20Icon.png`;
+  const bookOpenIcon = `${import.meta.env.BASE_URL}icons/Book%20Open%20Icon.svg`;
+  const arrowDownIcon = `${import.meta.env.BASE_URL}icons/Arrow%20Down%20Icon.svg`;
   const { documents, libraryRoot, loading, chooseLibraryRoot, importFiles, refresh } = useLibrary(api);
   const [search, setSearch] = useState('');
   const [selectedDoc, setSelectedDoc] = useState(null);
+  const [sidebarSortKey, setSidebarSortKey] = useState('last_opened');
+  const [sidebarSortDirection, setSidebarSortDirection] = useState('desc');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarHover, setSidebarHover] = useState(false);
@@ -1611,6 +1712,37 @@ function MainApp() {
   const [fitScale, setFitScale] = useState(1);
   const [isCentered, setIsCentered] = useState(false);
   const [pagesPerView, setPagesPerView] = useState(1);
+
+  useEffect(() => {
+    if (!api?.settings) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const [savedKey, savedDirection] = await Promise.all([
+          api.settings.get('reader.sidebarSortKey'),
+          api.settings.get('reader.sidebarSortDirection')
+        ]);
+        if (!active) return;
+        if (savedKey && ['added', 'name', 'last_opened'].includes(savedKey)) {
+          setSidebarSortKey(savedKey);
+        }
+        if (savedDirection && ['asc', 'desc'].includes(savedDirection)) {
+          setSidebarSortDirection(savedDirection);
+        }
+      } catch (error) {
+        // Ignore settings read errors
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (!api?.settings) return;
+    api.settings.set('reader.sidebarSortKey', sidebarSortKey);
+    api.settings.set('reader.sidebarSortDirection', sidebarSortDirection);
+  }, [api, sidebarSortKey, sidebarSortDirection]);
 
   const canvasRef = useRef(null);
   const singleRef = useRef(null);
@@ -1894,6 +2026,48 @@ function MainApp() {
     }
   }, []);
 
+  const handleOpenLibraryAt = useCallback((folderPath) => {
+    if (api?.window?.openLibraryAt) {
+      api.window.openLibraryAt(folderPath || null);
+      return;
+    }
+    if (api?.window?.openLibrary) {
+      api.window.openLibrary();
+    }
+  }, []);
+
+  const handleFitZoom = useCallback(() => {
+    const baseWidth = pageBaseRef.current.width;
+    const baseHeight = pageBaseRef.current.height;
+    const container = viewMode === 'single' ? singleRef.current : canvasRef.current;
+    const host = container || readerStageRef.current;
+    if (!baseWidth || !baseHeight || !host) {
+      setZoom(1);
+      return;
+    }
+    const padding = 16;
+    const gapTotal = (clampedPagesPerView - 1) * PAGE_GAP;
+    const availableW = Math.max(host.clientWidth - padding, 200);
+    const availableH = Math.max(host.clientHeight - padding, 200);
+    const fitW = Math.max(availableW - gapTotal, 160) / (baseWidth * clampedPagesPerView);
+    const fitH = availableH / baseHeight;
+    const targetScale = Math.min(fitW, fitH);
+    if (!targetScale || !fitScale) {
+      setZoom(1);
+      return;
+    }
+    const nextZoom = Math.min(Math.max(targetScale / fitScale, MIN_ZOOM), MAX_ZOOM);
+    setZoom(nextZoom);
+  }, [viewMode, clampedPagesPerView, fitScale, setZoom, MIN_ZOOM, MAX_ZOOM, PAGE_GAP]);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((prev) => Math.max(prev - 0.1, MIN_ZOOM));
+  }, [setZoom, MIN_ZOOM]);
+
+  const handleZoomIn = useCallback(() => {
+    setZoom((prev) => Math.min(prev + 0.1, MAX_ZOOM));
+  }, [setZoom, MAX_ZOOM]);
+
   const handlePanMove = useCallback((event) => {
     if (!panState.current.active) return;
     const { container, startX, startY, scrollLeft, scrollTop } = panState.current;
@@ -2148,8 +2322,42 @@ function MainApp() {
       docs = docs.filter((doc) => (doc.title || '').toLowerCase().includes(term));
     }
 
-    return docs;
-  }, [documents, search, currentFolderPath]);
+    const toTimestamp = (value) => {
+      if (!value) return 0;
+      if (typeof value === 'number') return value;
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    const getSortValue = (doc) => {
+      if (sidebarSortKey === 'added') {
+        return toTimestamp(doc.created_at || doc.file_mtime);
+      }
+      if (sidebarSortKey === 'last_opened') {
+        return toTimestamp(doc.last_opened);
+      }
+      return ((doc.title || basenameForPath(doc.file_path)) || '').toLowerCase();
+    };
+
+    const sorted = [...docs].sort((a, b) => {
+      const aVal = getSortValue(a);
+      const bVal = getSortValue(b);
+      let cmp = 0;
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        cmp = aVal.localeCompare(bVal);
+      } else {
+        cmp = (aVal || 0) - (bVal || 0);
+      }
+      if (cmp === 0) {
+        const aLabel = (a.title || basenameForPath(a.file_path) || '').toLowerCase();
+        const bLabel = (b.title || basenameForPath(b.file_path) || '').toLowerCase();
+        cmp = aLabel.localeCompare(bLabel);
+      }
+      return sidebarSortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [documents, search, currentFolderPath, sidebarSortKey, sidebarSortDirection]);
 
   // Get current folder name for display
   const currentFolderName = useMemo(() => {
@@ -2194,7 +2402,22 @@ function MainApp() {
           <div className="library-drag" aria-hidden="true" />
           <div className="library-head">
             <div className="library-actions">
-              <span className="library-title">{currentFolderName}</span>
+              <span
+                className="library-title library-title-link"
+                onClick={() => handleOpenLibraryAt(currentFolderPath)}
+                aria-label="Open folder in library"
+                title="Open folder in library"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleOpenLibraryAt(currentFolderPath);
+                  }
+                }}
+              >
+                {currentFolderName}
+              </span>
               <div className="library-action-buttons">
                 <button
                   className="library-toggle"
@@ -2202,23 +2425,7 @@ function MainApp() {
                   aria-label="Open Library"
                   title="Open Library"
                 >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h7v18H3z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-7v18h7z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinejoin="round"
-                    />
-                    <path d="M12 3v18" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                  </svg>
+                  <img src={bookOpenIcon} alt="" aria-hidden="true" />
                 </button>
                 <button
                   className={`pin-toggle ${sidebarPinned ? 'active' : ''}`}
@@ -2239,6 +2446,26 @@ function MainApp() {
             />
             <div className="library-meta">
               <span id="library-count">{formatCount(filteredDocuments.length)}</span>
+              <div className="sort-controls">
+                <select
+                  aria-label="Sort scores"
+                  value={sidebarSortKey}
+                  onChange={(event) => setSidebarSortKey(event.target.value)}
+                >
+                  <option value="added">Added</option>
+                  <option value="name">Name</option>
+                  <option value="last_opened">Last Opened</option>
+                </select>
+                <button
+                  type="button"
+                  className={`sort-toggle ${sidebarSortDirection === 'asc' ? 'asc' : 'desc'}`}
+                  onClick={() => setSidebarSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                  aria-label={sidebarSortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
+                  title={sidebarSortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
+                >
+                  <img src={arrowDownIcon} alt="" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
           <div id="library-list" className="library-list">
@@ -2310,15 +2537,49 @@ function MainApp() {
               </div>
               <div className="control-group">
                 <label>Zoom</label>
-                <input
-                  id="zoom"
-                  type="range"
-                  min={MIN_ZOOM}
-                  max={MAX_ZOOM}
-                  step="0.05"
-                  value={zoom}
-                  onChange={(event) => setZoom(parseFloat(event.target.value))}
-                />
+                <div className="zoom-pill" role="group" aria-label="Zoom controls">
+                  <button
+                    type="button"
+                    className="zoom-pill-button"
+                    onClick={handleZoomOut}
+                    aria-label="Zoom out"
+                    title="Zoom out"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                      <path d="M8.5 11h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M15.5 15.5l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="zoom-pill-button zoom-fit"
+                    onClick={handleFitZoom}
+                    aria-label="Fit to view"
+                    title="Fit to view"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 9V4h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M20 9V4h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M4 15v5h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="zoom-pill-button"
+                    onClick={handleZoomIn}
+                    aria-label="Zoom in"
+                    title="Zoom in"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                      <path d="M11 8.5v5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M8.5 11h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="M15.5 15.5l4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               {viewMode === 'continuous' && (
                 <div className="control-group">

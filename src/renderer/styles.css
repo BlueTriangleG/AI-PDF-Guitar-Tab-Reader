@@ -195,6 +195,12 @@ button.accent {
   height: 18px;
 }
 
+.library-toggle img {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 .library-title {
   font-weight: 600;
   font-size: 13px;
@@ -202,6 +208,7 @@ button.accent {
   text-transform: uppercase;
   letter-spacing: 1px;
 }
+
 
 .pin-toggle.active {
   border-color: transparent;
@@ -289,6 +296,50 @@ button.accent {
   justify-content: space-between;
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+.sort-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-controls select {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 28px 6px 10px;
+  font-size: 12px;
+  background: white;
+  color: var(--ink);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b5b4b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
+}
+
+.sort-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--ink);
+}
+
+.sort-toggle img {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.sort-toggle.asc img {
+  transform: rotate(180deg);
 }
 
 .library-root {
@@ -1224,6 +1275,50 @@ button.accent {
 .control-group select,
 .control-group input[type="range"] {
   width: 140px;
+}
+
+.zoom-pill {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 8px 20px rgba(31, 27, 22, 0.08);
+}
+
+.zoom-pill-button {
+  width: 32px;
+  height: 28px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  box-shadow: none;
+}
+
+.zoom-pill-button:hover {
+  background: rgba(31, 27, 22, 0.08);
+  transform: none;
+  box-shadow: none;
+}
+
+.zoom-pill-button:active {
+  background: rgba(31, 27, 22, 0.16);
+}
+
+.zoom-fit {
+  width: 38px;
+  height: 30px;
+}
+
+.zoom-pill-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .metronome-window {
