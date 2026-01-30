@@ -1,6 +1,7 @@
 const { BrowserWindow, ipcMain, dialog } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenReaderWindow, onOpenLibraryWindow }) {
   const { library, pdfService } = services;
@@ -153,6 +154,26 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
 
   ipcMain.handle('pdf:read', async (_event, filePath) => {
     return fs.readFile(filePath);
+  });
+
+  ipcMain.handle('file:toUrl', async (_event, filePath) => {
+    return pathToFileURL(filePath).toString();
+  });
+
+  ipcMain.handle('file:readAsDataUrl', async (_event, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp'
+    };
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+    const buffer = await fs.readFile(filePath);
+    const base64 = buffer.toString('base64');
+    return `data:${mimeType};base64,${base64}`;
   });
 
   ipcMain.handle('reader:saveState', async (_event, documentId, state) => {

@@ -1555,6 +1555,14 @@ button.accent {
   transform: translateY(0) scale(1);
 }
 
+.image-page {
+  display: block;
+  max-width: none;
+  user-select: none;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
 .page-placeholder {
   width: 100%;
   aspect-ratio: 9 / 16;

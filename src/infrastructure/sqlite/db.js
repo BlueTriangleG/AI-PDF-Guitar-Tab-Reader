@@ -103,6 +103,13 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_setlist_items_order ON setlist_items(setlist_id, sort_order);
   `);
 
+  // Migration: Add file_type column if it doesn't exist
+  const columns = db.prepare("PRAGMA table_info(documents)").all();
+  const hasFileType = columns.some((col) => col.name === 'file_type');
+  if (!hasFileType) {
+    db.exec("ALTER TABLE documents ADD COLUMN file_type TEXT DEFAULT 'pdf'");
+  }
+
   return db;
 }
 

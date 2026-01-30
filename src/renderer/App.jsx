@@ -270,7 +270,7 @@ function DocPreview({ filePath, label }) {
           const blob = new Blob([bytes], { type: 'image/png' });
           blobUrl = URL.createObjectURL(blob);
         } else if (api.fileUrlFromPath) {
-          blobUrl = api.fileUrlFromPath(outputPath);
+          blobUrl = await api.fileUrlFromPath(outputPath);
         } else {
           blobUrl = outputPath;
         }
@@ -1633,6 +1633,8 @@ function MainApp() {
 
   const {
     pdfDoc,
+    imageUrl,
+    fileType,
     pageCount,
     loading: pageLoading,
     error: pdfError,
@@ -1686,6 +1688,24 @@ function MainApp() {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (fileType === 'image' && imageUrl) {
+      // For images, load and get dimensions
+      const img = new Image();
+      img.onload = () => {
+        if (cancelled) return;
+        pageBaseRef.current = { width: img.naturalWidth, height: img.naturalHeight };
+        computeFitScale();
+      };
+      img.onerror = () => {
+        pageBaseRef.current = { width: null, height: null };
+      };
+      img.src = imageUrl;
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (!pdfDoc) return;
 
     (async () => {
@@ -1704,7 +1724,7 @@ function MainApp() {
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, computeFitScale]);
+  }, [pdfDoc, imageUrl, fileType, computeFitScale]);
 
   useEffect(() => {
     const stage = readerStageRef.current;
@@ -2411,7 +2431,7 @@ function MainApp() {
                   <div className="loading-spinner" />
                 </div>
               )}
-              {pdfError && <div className="empty">Failed to load PDF: {pdfError}</div>}
+              {pdfError && <div className="empty">Failed to load: {pdfError}</div>}
               {!pageLoading && !selectedDoc && (
                 <div className="empty-state">
                   <div className="empty-icon">
@@ -2430,7 +2450,7 @@ function MainApp() {
                       <polyline points="17 8 12 3 7 8" />
                       <line x1="12" y1="3" x2="12" y2="15" />
                     </svg>
-                    Import PDF
+                    Import Files
                   </button>
                 </div>
               )}
@@ -2440,6 +2460,20 @@ function MainApp() {
                     <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} />
                   </div>
                 ))}
+                {selectedDoc && fileType === 'image' && imageUrl && (
+                  <div className="page-shell">
+                    <img
+                      src={imageUrl}
+                      alt={selectedDoc.title || 'Image'}
+                      className="image-page"
+                      style={{
+                        width: pageBaseRef.current.width ? pageBaseRef.current.width * zoom * fitScale : 'auto',
+                        height: pageBaseRef.current.height ? pageBaseRef.current.height * zoom * fitScale : 'auto'
+                      }}
+                      draggable={false}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2472,7 +2506,7 @@ function MainApp() {
                   <div className="loading-spinner" />
                 </div>
               )}
-                {pdfError && <div className="empty">Failed to load PDF: {pdfError}</div>}
+                {pdfError && <div className="empty">Failed to load: {pdfError}</div>}
                 {!pageLoading && !selectedDoc && (
                   <div className="empty-state">
                     <div className="empty-icon">
@@ -2491,7 +2525,7 @@ function MainApp() {
                         <polyline points="17 8 12 3 7 8" />
                         <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
-                      Import PDF
+                      Import Files
                     </button>
                   </div>
                 )}
@@ -2502,6 +2536,22 @@ function MainApp() {
                         <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} />
                       </div>
                     ))}
+                  </div>
+                )}
+                {!pageLoading && selectedDoc && fileType === 'image' && imageUrl && (
+                  <div className="page-stack single-stack" style={{ '--pages-per-view': 1 }}>
+                    <div className="page-shell">
+                      <img
+                        src={imageUrl}
+                        alt={selectedDoc.title || 'Image'}
+                        className="image-page"
+                        style={{
+                          width: pageBaseRef.current.width ? pageBaseRef.current.width * zoom * fitScale : 'auto',
+                          height: pageBaseRef.current.height ? pageBaseRef.current.height * zoom * fitScale : 'auto'
+                        }}
+                        draggable={false}
+                      />
+                    </div>
                   </div>
                 )}
               </div>

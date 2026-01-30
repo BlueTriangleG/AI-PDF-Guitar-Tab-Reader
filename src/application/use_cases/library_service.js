@@ -160,12 +160,18 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
 
   async function upsertFile(filePath) {
     const stats = await fs.promises.stat(filePath);
+    const fileType = fileScanner.getFileType(filePath);
     let pageCount = null;
-    try {
-      const info = await pdfService.getDocumentInfo(filePath);
-      pageCount = info.pageCount ?? null;
-    } catch (error) {
-      pageCount = null;
+
+    if (fileType === 'pdf') {
+      try {
+        const info = await pdfService.getDocumentInfo(filePath);
+        pageCount = info.pageCount ?? null;
+      } catch (error) {
+        pageCount = null;
+      }
+    } else if (fileType === 'image') {
+      pageCount = 1; // Images are single-page documents
     }
 
     const now = new Date().toISOString();
@@ -178,6 +184,7 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
       page_count: pageCount,
       file_mtime: stats.mtimeMs,
       file_size: stats.size,
+      file_type: fileType || 'pdf',
       created_at: now,
       updated_at: now,
       last_opened: null

@@ -30,9 +30,9 @@ function createLibraryRepository(db) {
 
   const upsertStmt = db.prepare(`
     INSERT INTO documents (
-      title, artist, file_path, page_count, file_mtime, file_size, created_at, updated_at, last_opened
+      title, artist, file_path, page_count, file_mtime, file_size, file_type, created_at, updated_at, last_opened
     ) VALUES (
-      @title, @artist, @file_path, @page_count, @file_mtime, @file_size, @created_at, @updated_at, @last_opened
+      @title, @artist, @file_path, @page_count, @file_mtime, @file_size, @file_type, @created_at, @updated_at, @last_opened
     )
     ON CONFLICT(file_path) DO UPDATE SET
       title = excluded.title,
@@ -40,6 +40,7 @@ function createLibraryRepository(db) {
       page_count = excluded.page_count,
       file_mtime = excluded.file_mtime,
       file_size = excluded.file_size,
+      file_type = excluded.file_type,
       updated_at = excluded.updated_at
   `);
 

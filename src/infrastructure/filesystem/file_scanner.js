@@ -1,8 +1,27 @@
 const fs = require('fs');
 const path = require('path');
 
+const SUPPORTED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+
+function isSupportedFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return SUPPORTED_EXTENSIONS.includes(ext);
+}
+
 function isPdfFile(filePath) {
   return path.extname(filePath).toLowerCase() === '.pdf';
+}
+
+function isImageFile(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return IMAGE_EXTENSIONS.includes(ext);
+}
+
+function getFileType(filePath) {
+  if (isPdfFile(filePath)) return 'pdf';
+  if (isImageFile(filePath)) return 'image';
+  return null;
 }
 
 async function walkDirectory(dir) {
@@ -15,7 +34,7 @@ async function walkDirectory(dir) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       files.push(...await walkDirectory(fullPath));
-    } else if (entry.isFile() && isPdfFile(fullPath)) {
+    } else if (entry.isFile() && isSupportedFile(fullPath)) {
       files.push(fullPath);
     }
   }
@@ -33,11 +52,11 @@ async function listFolders(dir) {
     .map((entry) => path.join(dir, entry.name));
 }
 
-async function copyPdfFiles(files, destinationRoot) {
+async function copySupportedFiles(files, destinationRoot) {
   await ensureDirectory(destinationRoot);
   const results = [];
   for (const sourcePath of files) {
-    if (!isPdfFile(sourcePath)) {
+    if (!isSupportedFile(sourcePath)) {
       continue;
     }
     const baseName = path.basename(sourcePath);
@@ -57,9 +76,14 @@ async function copyPdfFiles(files, destinationRoot) {
 function createFileScanner() {
   return {
     listPdfFiles: walkDirectory,
+    listSupportedFiles: walkDirectory,
     listFolders,
     ensureDirectory,
-    copyPdfFiles
+    copyPdfFiles: copySupportedFiles,
+    copySupportedFiles,
+    isPdfFile,
+    isImageFile,
+    getFileType
   };
 }
 

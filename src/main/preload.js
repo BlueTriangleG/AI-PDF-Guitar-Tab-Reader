@@ -1,5 +1,4 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
-const { pathToFileURL } = require('url');
 
 contextBridge.exposeInMainWorld('api', {
   library: {
@@ -44,7 +43,8 @@ contextBridge.exposeInMainWorld('api', {
     openMetronome: () => ipcRenderer.invoke('window:openMetronome'),
     openLibrary: () => ipcRenderer.invoke('window:openLibrary')
   },
-  fileUrlFromPath: (filePath) => pathToFileURL(filePath).toString(),
+  fileUrlFromPath: (filePath) => ipcRenderer.invoke('file:toUrl', filePath),
+  fileReadAsDataUrl: (filePath) => ipcRenderer.invoke('file:readAsDataUrl', filePath),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   onLibraryChanged: (callback) => {
     const handler = () => callback();
