@@ -7,7 +7,7 @@ function sendToFocused(channel) {
   }
 }
 
-function setAppMenu({ onOpenWindow, onOpenLibraryWindow } = {}) {
+function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {}) {
   const isMac = process.platform === 'darwin';
   const newWindowItem = {
     label: 'Open New Window',
@@ -22,6 +22,13 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow } = {}) {
     enabled: Boolean(onOpenLibraryWindow),
     click: () => {
       if (onOpenLibraryWindow) onOpenLibraryWindow();
+    }
+  };
+  const tunerWindowItem = {
+    label: 'Open Tuner',
+    enabled: Boolean(onOpenTunerWindow),
+    click: () => {
+      if (onOpenTunerWindow) onOpenTunerWindow();
     }
   };
 
@@ -106,6 +113,7 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow } = {}) {
       submenu: [
         newWindowItem,
         libraryWindowItem,
+        tunerWindowItem,
         { type: 'separator' },
         { role: 'minimize' },
         { role: 'zoom' },

@@ -5,6 +5,14 @@ import { useReader } from './view_models/useReader.js';
 const api = window.api;
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD_SEC = 0.12;
+const STANDARD_TUNING = [
+  { label: 'E2', name: 'E', freq: 82.41 },
+  { label: 'A2', name: 'A', freq: 110.0 },
+  { label: 'D3', name: 'D', freq: 146.83 },
+  { label: 'G3', name: 'G', freq: 196.0 },
+  { label: 'B3', name: 'B', freq: 246.94 },
+  { label: 'E4', name: 'E', freq: 329.63 }
+];
 
 function getAppView() {
   if (typeof window === 'undefined') return 'main';
@@ -503,6 +511,238 @@ function MetronomeWindow() {
   );
 }
 
+function detectPitch(buffer, sampleRate) {
+  const size = buffer.length;
+  let rms = 0;
+  for (let i = 0; i < size; i += 1) {
+    const val = buffer[i];
+    rms += val * val;
+  }
+  rms = Math.sqrt(rms / size);
+  if (rms < 0.01) return null;
+
+  let r1 = 0;
+  let r2 = size - 1;
+  const threshold = 0.2;
+  while (r1 < size / 2 && Math.abs(buffer[r1]) < threshold) r1 += 1;
+  while (r2 > size / 2 && Math.abs(buffer[r2]) < threshold) r2 -= 1;
+
+  const trimmed = buffer.slice(r1, r2);
+  const trimmedSize = trimmed.length;
+  const c = new Array(trimmedSize).fill(0);
+
+  for (let lag = 0; lag < trimmedSize; lag += 1) {
+    let sum = 0;
+    for (let i = 0; i < trimmedSize - lag; i += 1) {
+      sum += trimmed[i] * trimmed[i + lag];
+    }
+    c[lag] = sum;
+  }
+
+  let d = 0;
+  while (d < trimmedSize - 1 && c[d] > c[d + 1]) d += 1;
+
+  let maxPos = -1;
+  let maxVal = -1;
+  for (let i = d; i < trimmedSize; i += 1) {
+    if (c[i] > maxVal) {
+      maxVal = c[i];
+      maxPos = i;
+    }
+  }
+
+  if (maxPos <= 0) return null;
+
+  let T0 = maxPos;
+  if (maxPos > 0 && maxPos < trimmedSize - 1) {
+    const x1 = c[maxPos - 1];
+    const x2 = c[maxPos];
+    const x3 = c[maxPos + 1];
+    const a = (x1 + x3 - 2 * x2) / 2;
+    const b = (x3 - x1) / 2;
+    if (a) {
+      T0 = maxPos - b / (2 * a);
+    }
+  }
+
+  const frequency = sampleRate / T0;
+  const clarity = c[0] ? maxVal / c[0] : 0;
+  if (frequency < 40 || frequency > 1200) return null;
+  return { frequency, clarity };
+}
+
+function TunerWindow() {
+  const [listening, setListening] = useState(true);
+  const [frequency, setFrequency] = useState(null);
+  const [clarity, setClarity] = useState(0);
+  const [error, setError] = useState('');
+  const [selectedStringIndex, setSelectedStringIndex] = useState(0);
+  const [meterOffset, setMeterOffset] = useState(0);
+
+  const audioRef = useRef(null);
+  const analyserRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+  const historyRef = useRef([]);
+  const lastUpdateRef = useRef(0);
+  const meterRef = useRef(null);
+
+  const currentTarget = useMemo(() => {
+    return STANDARD_TUNING[selectedStringIndex] || STANDARD_TUNING[0];
+  }, [selectedStringIndex]);
+
+  const centsOffset = useMemo(() => {
+    if (!frequency) return 0;
+    return 1200 * Math.log2(frequency / currentTarget.freq);
+  }, [frequency, currentTarget]);
+
+  const isInTune = Math.abs(centsOffset) <= 5;
+
+  useEffect(() => {
+    const meter = meterRef.current;
+    if (!meter) return;
+    const half = Math.max(meter.clientWidth / 2 - 6, 0);
+    const clamped = Math.max(-50, Math.min(50, centsOffset));
+    setMeterOffset((clamped / 50) * half);
+  }, [centsOffset]);
+
+  useEffect(() => {
+    if (!listening) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.close();
+        audioRef.current = null;
+      }
+      analyserRef.current = null;
+      historyRef.current = [];
+      return;
+    }
+
+    const start = async () => {
+      try {
+        setError('');
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext || !navigator.mediaDevices?.getUserMedia) {
+          setError('Microphone not supported.');
+          setListening(false);
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+        streamRef.current = stream;
+        const ctx = new AudioContext();
+        audioRef.current = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        analyserRef.current = analyser;
+        source.connect(analyser);
+
+        const buffer = new Float32Array(analyser.fftSize);
+        const update = (timestamp) => {
+          if (!analyserRef.current || !audioRef.current) return;
+          analyserRef.current.getFloatTimeDomainData(buffer);
+          const result = detectPitch(buffer, audioRef.current.sampleRate);
+          if (result && result.frequency && result.clarity > 0.08) {
+            historyRef.current.push(result.frequency);
+            if (historyRef.current.length > 5) historyRef.current.shift();
+            const sorted = [...historyRef.current].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            const smoothed = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+
+            if (timestamp - lastUpdateRef.current > 80) {
+              lastUpdateRef.current = timestamp;
+              setFrequency(smoothed);
+              setClarity(result.clarity);
+            }
+          } else if (timestamp - lastUpdateRef.current > 120) {
+            lastUpdateRef.current = timestamp;
+            setClarity(result?.clarity || 0);
+          }
+          rafRef.current = requestAnimationFrame(update);
+        };
+
+        rafRef.current = requestAnimationFrame(update);
+      } catch (err) {
+        setError('Microphone permission denied.');
+        setListening(false);
+      }
+    };
+
+    start();
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [listening]);
+
+  return (
+    <div className={`tuner-window ${listening ? 'listening' : ''}`}>
+      <div className="tuner-drag" aria-hidden="true" />
+      <header className="tuner-head">
+        <div className="tuner-title-block">
+          <div className="tuner-title">Tuner</div>
+          <div className="tuner-sub">Select a string to tune</div>
+        </div>
+        <button
+          type="button"
+          className={`tuner-toggle ${listening ? 'active' : ''}`}
+          onClick={() => setListening((prev) => !prev)}
+        >
+          <span>{listening ? 'Stop' : 'Start'}</span>
+        </button>
+      </header>
+      <div className="tuner-main">
+        <div className={`tuner-note ${isInTune ? 'in' : ''}`}>{currentTarget.label}</div>
+        <div className="tuner-frequency">
+          {frequency ? `${frequency.toFixed(2)} Hz` : '--'}
+        </div>
+        <div className="tuner-meter" ref={meterRef}>
+          <div className="tuner-meter-track" />
+          <div
+            className={`tuner-meter-needle ${isInTune ? 'in' : ''}`}
+            style={{ transform: `translateX(${meterOffset}px) translateY(-50%)` }}
+          />
+        </div>
+        <div className="tuner-offset">
+          {frequency ? `${centsOffset > 0 ? '+' : ''}${centsOffset.toFixed(1)} cents` : 'Listen for a note'}
+        </div>
+        <div className="tuner-strings">
+          {STANDARD_TUNING.map((string) => (
+            <button
+              key={string.label}
+              type="button"
+              className={`tuner-string ${string.label === currentTarget.label ? 'active' : ''}`}
+              onClick={() => setSelectedStringIndex(STANDARD_TUNING.indexOf(string))}
+            >
+              <span className="string-name">{string.name}</span>
+              <span className="string-label">{string.label}</span>
+            </button>
+          ))}
+        </div>
+        {error && <div className="tuner-error">{error}</div>}
+        <div className="tuner-clarity">
+          <span>Clarity</span>
+          <div className="clarity-bar">
+            <div className="clarity-fill" style={{ width: `${Math.min(1, clarity) * 100}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LibraryWindow() {
   const ROOT_VIEW = '__root__';
   const arrowDownIcon = `${import.meta.env.BASE_URL}icons/Arrow%20Down%20Icon.svg`;
@@ -756,26 +996,41 @@ function LibraryWindow() {
     return allDocuments.filter((doc) => normalizePath(getParentDir(doc.file_path)) === normalizePath(selectedView));
   }, [allDocuments, selectedView, internalRoot]);
 
+  const searchTerm = sidebarSearch.trim().toLowerCase();
+  const isSearchActive = searchTerm.length > 0;
+  const folderCandidates = useMemo(() => {
+    const seen = new Set();
+    const add = (path) => {
+      if (!path || seen.has(path)) return;
+      seen.add(path);
+    };
+    rootFolders.forEach(add);
+    linkedSources.forEach((source) => add(source.path));
+    allDocuments.forEach((doc) => add(getParentDir(doc.file_path)));
+    return Array.from(seen);
+  }, [rootFolders, linkedSources, allDocuments]);
+
   const folderItems = useMemo(() => {
     const linkedPaths = new Set(linkedSources.map((s) => s.path));
-    return currentFolders.map((folder) => ({
+    const baseFolders = isSearchActive ? folderCandidates : currentFolders;
+    return baseFolders.map((folder) => ({
       path: folder,
       label: basenameForPath(folder),
       count: allDocuments.filter((doc) => isUnderRoot(doc.file_path, folder)).length,
       isLinked: linkedPaths.has(folder)
     }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [currentFolders, allDocuments, linkedSources]);
+  }, [currentFolders, allDocuments, linkedSources, isSearchActive, folderCandidates]);
 
   const docItems = useMemo(() => {
-    return currentDocs.map((doc) => ({
+    const baseDocs = isSearchActive ? allDocuments : currentDocs;
+    return baseDocs.map((doc) => ({
       doc,
       label: doc.title || 'Untitled'
     }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [currentDocs]);
+  }, [currentDocs, allDocuments, isSearchActive]);
 
-  const searchTerm = sidebarSearch.trim().toLowerCase();
   const filteredFolderItems = useMemo(() => {
     if (!searchTerm) return folderItems;
     return folderItems.filter((item) => item.label.toLowerCase().includes(searchTerm));
@@ -1459,19 +1714,18 @@ function LibraryWindow() {
           <div className="library-title">Library</div>
           <div className="library-subtitle">All your scores, in one place.</div>
         </div>
-        <div className="library-actions" />
+        <div className="library-actions">
+          <input
+            type="search"
+            className="library-search"
+            placeholder="Search library"
+            value={sidebarSearch}
+            onChange={(event) => setSidebarSearch(event.target.value)}
+          />
+        </div>
       </header>
       <div className="library-body">
         <aside className="library-sidebar">
-          <div className="library-section">
-            <input
-              type="search"
-              className="library-search"
-              placeholder="Search library"
-              value={sidebarSearch}
-              onChange={(event) => setSidebarSearch(event.target.value)}
-            />
-          </div>
           <div className="library-section">
             <div className="section-title">Position</div>
             <div className="position-display">{positionText}</div>
@@ -2121,6 +2375,12 @@ function MainApp() {
     }
   }, []);
 
+  const handleOpenTuner = useCallback(() => {
+    if (api?.window?.openTuner) {
+      api.window.openTuner();
+    }
+  }, []);
+
   const handleOpenLibrary = useCallback(() => {
     if (api?.window?.openLibrary) {
       api.window.openLibrary();
@@ -2767,6 +3027,19 @@ function MainApp() {
                   aria-hidden="true"
                 />
               </button>
+              <button
+                type="button"
+                className="tuner-launch"
+                onClick={handleOpenTuner}
+                aria-label="Open tuner"
+                title="Open tuner"
+              >
+                <svg className="tuner-launch-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="12" cy="17" r="4" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="M8 21h8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -3036,6 +3309,7 @@ function MainApp() {
 function AppRoot() {
   const view = getAppView();
   if (view === 'metronome') return <MetronomeWindow />;
+  if (view === 'tuner') return <TunerWindow />;
   if (view === 'library') return <LibraryWindow />;
   return <MainApp />;
 }

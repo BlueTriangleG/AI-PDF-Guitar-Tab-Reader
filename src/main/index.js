@@ -2,12 +2,14 @@ const { app, BrowserWindow } = require('electron');
 const { createMainWindow } = require('./windows/main_window');
 const { createLibraryWindow } = require('./windows/library_window');
 const { createMetronomeWindow } = require('./windows/metronome_window');
+const { createTunerWindow } = require('./windows/tuner_window');
 const { registerIpcHandlers } = require('./ipc/handlers');
 const { initServices } = require('./bootstrap/init_services');
 const { setAppMenu } = require('./menus/app_menu');
 
 let libraryWindow;
 let metronomeWindow;
+let tunerWindow;
 const readerWindows = new Set();
 
 app.whenReady().then(async () => {
@@ -56,14 +58,31 @@ app.whenReady().then(async () => {
     return metronomeWindow;
   };
 
+  const openTunerWindow = () => {
+    if (tunerWindow && !tunerWindow.isDestroyed()) {
+      tunerWindow.focus();
+      return tunerWindow;
+    }
+    tunerWindow = createTunerWindow();
+    tunerWindow.on('closed', () => {
+      tunerWindow = null;
+    });
+    return tunerWindow;
+  };
+
   libraryWindow = openLibraryWindow();
-  setAppMenu({ onOpenWindow: createAndTrackWindow, onOpenLibraryWindow: openLibraryWindow });
+  setAppMenu({
+    onOpenWindow: createAndTrackWindow,
+    onOpenLibraryWindow: openLibraryWindow,
+    onOpenTunerWindow: openTunerWindow
+  });
   registerIpcHandlers({
     window: libraryWindow,
     services,
     onOpenMetronomeWindow: openMetronomeWindow,
     onOpenReaderWindow: openReaderWindow,
-    onOpenLibraryWindow: openLibraryWindow
+    onOpenLibraryWindow: openLibraryWindow,
+    onOpenTunerWindow: openTunerWindow
   });
 
   services.library.on('changed', async () => {

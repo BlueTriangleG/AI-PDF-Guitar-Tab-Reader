@@ -3,7 +3,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenReaderWindow, onOpenLibraryWindow }) {
+function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenReaderWindow, onOpenLibraryWindow, onOpenTunerWindow }) {
   const { library, pdfService } = services;
 
   ipcMain.handle('library:list', async () => library.listDocuments());
@@ -225,6 +225,13 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
   ipcMain.handle('window:openMetronome', async () => {
     if (onOpenMetronomeWindow) {
       onOpenMetronomeWindow();
+    }
+    return true;
+  });
+
+  ipcMain.handle('window:openTuner', async () => {
+    if (onOpenTunerWindow) {
+      onOpenTunerWindow();
     }
     return true;
   });

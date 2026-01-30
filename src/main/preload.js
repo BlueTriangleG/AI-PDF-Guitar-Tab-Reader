@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('api', {
   window: {
     setTrafficLights: (visible) => ipcRenderer.invoke('window:setTrafficLights', visible),
     openMetronome: () => ipcRenderer.invoke('window:openMetronome'),
+    openTuner: () => ipcRenderer.invoke('window:openTuner'),
     openLibrary: () => ipcRenderer.invoke('window:openLibrary'),
     openLibraryAt: (folderPath) => ipcRenderer.invoke('window:openLibraryAt', folderPath)
   },
