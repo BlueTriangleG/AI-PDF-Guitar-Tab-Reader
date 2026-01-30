@@ -23,7 +23,8 @@ contextBridge.exposeInMainWorld('api', {
     copyFolder: (sourcePath, targetParentPath) => ipcRenderer.invoke('library:copyFolder', sourcePath, targetParentPath),
     importFilesTo: (filePaths, targetFolder) => ipcRenderer.invoke('library:importFilesTo', filePaths, targetFolder),
     handleDroppedPaths: (paths, targetFolder) => ipcRenderer.invoke('library:handleDroppedPaths', paths, targetFolder),
-    openDocument: (docId) => ipcRenderer.invoke('library:openDocument', docId)
+    openDocument: (docId) => ipcRenderer.invoke('library:openDocument', docId),
+    openImageStack: (paths) => ipcRenderer.invoke('library:openImageStack', paths)
   },
   pdf: {
     getInfo: (filePath) => ipcRenderer.invoke('pdf:info', filePath),
@@ -32,7 +33,8 @@ contextBridge.exposeInMainWorld('api', {
     readFile: (filePath) => ipcRenderer.invoke('pdf:read', filePath)
   },
   reader: {
-    saveReadingState: (documentId, state) => ipcRenderer.invoke('reader:saveState', documentId, state)
+    saveReadingState: (documentId, state) => ipcRenderer.invoke('reader:saveState', documentId, state),
+    openImages: () => ipcRenderer.invoke('reader:openImages')
   },
   settings: {
     get: (key) => ipcRenderer.invoke('settings:get', key),
@@ -57,6 +59,11 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('menu:import-pdf', handler);
     return () => ipcRenderer.removeListener('menu:import-pdf', handler);
   },
+  onMenuOpenImages: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('menu:open-images', handler);
+    return () => ipcRenderer.removeListener('menu:open-images', handler);
+  },
   onMenuLibraryLocation: (callback) => {
     const handler = () => callback();
     ipcRenderer.on('menu:library-location', handler);
@@ -66,6 +73,11 @@ contextBridge.exposeInMainWorld('api', {
     const handler = (_event, docId) => callback(docId);
     ipcRenderer.on('reader:open-document', handler);
     return () => ipcRenderer.removeListener('reader:open-document', handler);
+  },
+  onReaderOpenImageStack: (callback) => {
+    const handler = (_event, paths) => callback(paths);
+    ipcRenderer.on('reader:open-image-stack', handler);
+    return () => ipcRenderer.removeListener('reader:open-image-stack', handler);
   },
   onLibraryRevealFolder: (callback) => {
     const handler = (_event, folderPath) => callback(folderPath);

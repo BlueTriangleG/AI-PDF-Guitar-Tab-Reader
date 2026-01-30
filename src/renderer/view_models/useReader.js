@@ -27,9 +27,10 @@ function useDebouncedEffect(effect, deps, delay) {
   }, [...deps, delay]);
 }
 
-export function useReader(api, selectedDoc) {
+export function useReader(api, selectedDoc, imageFiles = []) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
+  const [imagePages, setImagePages] = useState([]);
   const [fileType, setFileType] = useState(null);
   const [pageCount, setPageCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -56,6 +57,7 @@ export function useReader(api, selectedDoc) {
   }, [selectedDoc]);
 
   useEffect(() => {
+    if (imageFiles && imageFiles.length) return;
     if (!selectedDoc || !api?.pdf) {
       if (activeDocRef.current) {
         activeDocRef.current.destroy();
@@ -63,6 +65,7 @@ export function useReader(api, selectedDoc) {
       }
       setPdfDoc(null);
       setImageUrl(null);
+      setImagePages([]);
       setFileType(null);
       setPageCount(0);
       setError(null);
@@ -71,6 +74,7 @@ export function useReader(api, selectedDoc) {
 
     const detectedType = getFileType(selectedDoc.file_path);
     setFileType(detectedType);
+    setImagePages([]);
 
     let cancelled = false;
     setLoading(true);
@@ -90,6 +94,7 @@ export function useReader(api, selectedDoc) {
             activeDocRef.current = null;
           }
           setImageUrl(url);
+          setImagePages([]);
           setPageCount(1);
         } catch (err) {
           setImageUrl(null);
@@ -140,7 +145,60 @@ export function useReader(api, selectedDoc) {
     return () => {
       cancelled = true;
     };
-  }, [api, selectedDoc]);
+  }, [api, selectedDoc, imageFiles]);
+
+  useEffect(() => {
+    if (!imageFiles || imageFiles.length === 0) {
+      if (!selectedDoc) {
+        setImagePages([]);
+        setFileType(null);
+        setPageCount(0);
+        setError(null);
+      }
+      return;
+    }
+    if (!api?.fileReadAsDataUrl && !api?.fileUrlFromPath) {
+      setError('Image loader unavailable');
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setFileType('image-set');
+    setSinglePageIndex(0);
+    (async () => {
+      try {
+        const pages = await Promise.all(
+          imageFiles.map(async (filePath) => {
+            const url = api.fileReadAsDataUrl
+              ? await api.fileReadAsDataUrl(filePath)
+              : await api.fileUrlFromPath(filePath);
+            const size = await loadImageSize(url);
+            return { path: filePath, url, width: size.width, height: size.height };
+          })
+        );
+        if (cancelled) return;
+        if (activeDocRef.current) {
+          activeDocRef.current.destroy();
+          activeDocRef.current = null;
+        }
+        setPdfDoc(null);
+        setImageUrl(null);
+        setImagePages(pages);
+        setPageCount(pages.length);
+      } catch (err) {
+        if (cancelled) return;
+        setImagePages([]);
+        setPageCount(0);
+        setError(err?.message || 'Failed to load images');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, imageFiles, selectedDoc]);
 
   useDebouncedEffect(() => {
     if (!selectedDoc || !api?.reader) return;
@@ -178,8 +236,18 @@ export function useReader(api, selectedDoc) {
     setSinglePageIndex,
     setScrollOffset,
     onScroll,
-    pendingScroll
+    pendingScroll,
+    imagePages
   };
+}
+
+function loadImageSize(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: null, height: null });
+    img.src = url;
+  });
 }
 
 function normalizeBuffer(fileBuffer) {

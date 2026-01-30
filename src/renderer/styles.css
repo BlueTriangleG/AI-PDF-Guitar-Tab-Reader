@@ -657,8 +657,9 @@ button.accent {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.95);
   font-size: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
+
 
 .library-window .folder-create input {
   flex: 1;
@@ -677,7 +678,16 @@ button.accent {
 .library-window .library-content-head {
   display: grid;
   gap: 6px;
-  margin-bottom: 16px;
+  margin-bottom: 22px;
+}
+
+.library-window {
+  --score-col-max: 230px;
+  --score-col-min: 200px;
+  --score-gap: 18px;
+  --folder-gap: var(--score-gap);
+  --folder-col-max: calc((var(--score-col-max) - var(--folder-gap)) / 2);
+  --folder-col-min: calc((var(--score-col-min) - var(--folder-gap)) / 2);
 }
 
 .library-window .content-title-row {
@@ -696,6 +706,7 @@ button.accent {
 .library-window .content-title {
   font-size: 20px;
   font-weight: 600;
+  margin: 0;
 }
 
 .library-window .back-button {
@@ -787,18 +798,20 @@ button.accent {
 
 .library-window .library-items.grid {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 18px;
+  gap: var(--score-gap);
 }
 
 .library-window .content-section.folders .library-items.grid {
-  grid-template-columns: repeat(auto-fill, minmax(90px, 100px));
+  grid-template-columns: repeat(auto-fill, minmax(var(--folder-col-min), var(--folder-col-max)));
   justify-content: start;
+  justify-items: start;
   align-items: start;
-  gap: 20px 24px;
+  gap: 20px var(--folder-gap);
 }
 
 .library-window .content-section.folders .folder-entry {
   display: grid;
+  width: 72px;
   gap: 8px;
   justify-items: center;
   text-align: center;
@@ -820,7 +833,7 @@ button.accent {
 .library-window .content-section.folders .item-title {
   font-size: 11px;
   max-width: 90px;
-  width: auto;
+  width: 72px;
   text-align: center;
   margin-top: 0;
   line-height: 1.3;
@@ -837,12 +850,12 @@ button.accent {
 }
 
 .library-window .content-section.scores .library-items.grid {
-  grid-template-columns: repeat(auto-fill, minmax(200px, 230px));
+  grid-template-columns: repeat(auto-fill, minmax(var(--score-col-min), var(--score-col-max)));
   justify-content: start;
 }
 
 .library-window .content-section.scores .library-items.grid .item-card {
-  max-width: 230px;
+  max-width: var(--score-col-max);
   align-content: start;
   min-height: 0;
   gap: 4px;
@@ -863,7 +876,7 @@ button.accent {
 
 @media (max-width: 1200px) {
   .library-window .content-section.scores .library-items.grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 230px));
+    grid-template-columns: repeat(auto-fill, minmax(var(--score-col-min), var(--score-col-max)));
   }
 }
 
@@ -1939,6 +1952,18 @@ button.accent {
   background: var(--accent-dark);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(195, 104, 60, 0.25);
+}
+
+.empty-btn.secondary {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.empty-btn.secondary:hover {
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(28, 24, 20, 0.12);
 }
 
 @keyframes pulse {

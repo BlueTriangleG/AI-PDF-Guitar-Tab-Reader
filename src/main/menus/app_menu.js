@@ -51,6 +51,11 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow } = {}) {
           click: () => sendToFocused('menu:import-pdf')
         },
         {
+          label: 'Open Images...',
+          accelerator: 'Shift+CmdOrCtrl+O',
+          click: () => sendToFocused('menu:open-images')
+        },
+        {
           label: 'Add Folder...',
           accelerator: 'Shift+CmdOrCtrl+L',
           click: () => sendToFocused('menu:library-location')

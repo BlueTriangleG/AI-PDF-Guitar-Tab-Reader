@@ -140,6 +140,21 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
     return true;
   });
 
+  ipcMain.handle('library:openImageStack', async (_event, paths) => {
+    if (!onOpenReaderWindow) return false;
+    if (!Array.isArray(paths) || paths.length === 0) return false;
+    const target = onOpenReaderWindow();
+    if (!target || target.isDestroyed()) return false;
+    const send = () => target.webContents.send('reader:open-image-stack', paths);
+    if (target.webContents.isLoading()) {
+      target.webContents.once('did-finish-load', send);
+    } else {
+      send();
+    }
+    target.focus();
+    return true;
+  });
+
   ipcMain.handle('pdf:info', async (_event, filePath) => {
     return await pdfService.getDocumentInfo(filePath);
   });
@@ -179,6 +194,16 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
   ipcMain.handle('reader:saveState', async (_event, documentId, state) => {
     library.saveReadingState(documentId, state);
     return true;
+  });
+
+  ipcMain.handle('reader:openImages', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender) || window;
+    const result = await dialog.showOpenDialog(owner, {
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }]
+    });
+    if (result.canceled || result.filePaths.length === 0) return [];
+    return result.filePaths;
   });
 
   ipcMain.handle('settings:get', async (_event, key) => {

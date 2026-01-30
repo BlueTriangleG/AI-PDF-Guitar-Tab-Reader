@@ -238,7 +238,7 @@ function PageCanvas({ pdfDoc, pageIndex, zoom }) {
   );
 }
 
-function DocPreview({ filePath, label }) {
+function DocPreview({ filePath, label, fileType }) {
   const [previewUrl, setPreviewUrl] = useState('');
   const [error, setError] = useState(false);
   const objectUrlRef = useRef('');
@@ -247,7 +247,7 @@ function DocPreview({ filePath, label }) {
     let cancelled = false;
     setPreviewUrl('');
     setError(false);
-    if (!api?.pdf?.renderPage || !filePath) return undefined;
+    if (!filePath) return undefined;
 
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
@@ -256,24 +256,42 @@ function DocPreview({ filePath, label }) {
 
     (async () => {
       try {
-        const outputPath = await api.pdf.renderPage(filePath, 0, 0.3);
-        if (cancelled) return;
+        const ext = filePath.toLowerCase().split('.').pop();
+        const isImage = fileType === 'image' || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'].includes(ext);
         let blobUrl = '';
-        if (api.pdf.readFile) {
-          const data = await api.pdf.readFile(outputPath);
-          if (cancelled) return;
-          const bytes = data?.buffer
-            ? data
-            : data?.data
-              ? new Uint8Array(data.data)
-              : new Uint8Array(data || []);
-          const blob = new Blob([bytes], { type: 'image/png' });
-          blobUrl = URL.createObjectURL(blob);
-        } else if (api.fileUrlFromPath) {
-          blobUrl = await api.fileUrlFromPath(outputPath);
+
+        if (isImage) {
+          if (api.fileReadAsDataUrl) {
+            blobUrl = await api.fileReadAsDataUrl(filePath);
+          } else if (api.fileUrlFromPath) {
+            blobUrl = await api.fileUrlFromPath(filePath);
+          } else {
+            throw new Error('No image loader available');
+          }
         } else {
-          blobUrl = outputPath;
+          if (!api?.pdf?.renderPage) {
+            throw new Error('No PDF renderer available');
+          }
+          const outputPath = await api.pdf.renderPage(filePath, 0, 0.3);
+          if (cancelled) return;
+          if (api.pdf.readFile) {
+            const data = await api.pdf.readFile(outputPath);
+            if (cancelled) return;
+            const bytes = data?.buffer
+              ? data
+              : data?.data
+                ? new Uint8Array(data.data)
+                : new Uint8Array(data || []);
+            const blob = new Blob([bytes], { type: 'image/png' });
+            blobUrl = URL.createObjectURL(blob);
+          } else if (api.fileUrlFromPath) {
+            blobUrl = await api.fileUrlFromPath(outputPath);
+          } else {
+            blobUrl = outputPath;
+          }
         }
+
+        if (cancelled) return;
         objectUrlRef.current = blobUrl;
         setPreviewUrl(blobUrl);
       } catch (err) {
@@ -288,7 +306,7 @@ function DocPreview({ filePath, label }) {
         objectUrlRef.current = '';
       }
     };
-  }, [filePath]);
+  }, [filePath, fileType]);
 
   return (
     <div className={`doc-preview ${previewUrl ? 'ready' : ''} ${error ? 'error' : ''}`}>
@@ -506,6 +524,7 @@ function LibraryWindow() {
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedDocs, setSelectedDocs] = useState(new Set());
   const [selectedFolders, setSelectedFolders] = useState(new Set());
+  const [selectedDocOrder, setSelectedDocOrder] = useState([]);
   const [lastSelectedDoc, setLastSelectedDoc] = useState(null);
   const [lastSelectedFolder, setLastSelectedFolder] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
@@ -516,6 +535,16 @@ function LibraryWindow() {
   const [dropTarget, setDropTarget] = useState(null);
   const [clipboard, setClipboard] = useState({ docs: [], folders: [], mode: null }); // mode: 'copy' or 'cut'
   const newFolderInputRef = useRef(null);
+
+  const selectedDocItems = useMemo(
+    () => allDocuments.filter((doc) => selectedDocs.has(doc.id)),
+    [allDocuments, selectedDocs]
+  );
+  const selectedImageDocs = useMemo(
+    () => selectedDocItems.filter((doc) => doc.file_type === 'image'),
+    [selectedDocItems]
+  );
+  const canOpenImageStack = selectedImageDocs.length >= 2 && selectedImageDocs.length === selectedDocItems.length;
 
   useEffect(() => {
     if (!api?.settings) return undefined;
@@ -565,6 +594,7 @@ function LibraryWindow() {
   const clearSelection = useCallback(() => {
     setSelectedDocs(new Set());
     setSelectedFolders(new Set());
+    setSelectedDocOrder([]);
     setLastSelectedDoc(null);
     setLastSelectedFolder(null);
   }, []);
@@ -796,6 +826,14 @@ function LibraryWindow() {
     return sorted;
   }, [filteredDocItems, sortKey, sortDirection]);
 
+  const sortedDocOrder = useMemo(() => {
+    const order = new Map();
+    sortedDocItems.forEach((item, index) => {
+      order.set(item.doc.id, index);
+    });
+    return order;
+  }, [sortedDocItems]);
+
   const totalItemCount = filteredFolderItems.length + filteredDocItems.length;
 
   const positionText = useMemo(() => {
@@ -934,48 +972,104 @@ function LibraryWindow() {
     setSelectedView(parent);
   }, [canGoBack, currentRoot, selectedView, internalRoot]);
 
+  const handleOpenImageStack = useCallback(async (docIds, orderHint = []) => {
+    if (!api?.library?.openImageStack || !docIds?.length) return;
+    const docsById = new Map(allDocuments.map((doc) => [doc.id, doc]));
+    const docIdSet = new Set(docIds);
+    const orderedIds = [];
+    orderHint.forEach((id) => {
+      if (docIdSet.has(id)) orderedIds.push(id);
+    });
+    if (orderedIds.length < docIds.length) {
+      const remaining = docIds.filter((id) => !orderedIds.includes(id));
+      remaining.sort((a, b) => {
+        const aOrder = sortedDocOrder.get(a) ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = sortedDocOrder.get(b) ?? Number.MAX_SAFE_INTEGER;
+        return aOrder - bOrder;
+      });
+      orderedIds.push(...remaining);
+    }
+    const imageDocs = orderedIds
+      .map((id) => docsById.get(id))
+      .filter((doc) => doc && doc.file_type === 'image');
+    if (imageDocs.length < 2) return;
+    const paths = imageDocs.map((doc) => doc.file_path);
+    await api.library.openImageStack(paths);
+    clearSelection();
+  }, [api, allDocuments, sortedDocOrder, clearSelection]);
+
   const handleSelectDoc = useCallback((doc, event) => {
     const docId = doc.id;
     const isShift = event?.shiftKey;
     const isMeta = event?.metaKey || event?.ctrlKey;
+    const isDouble = event?.detail >= 2;
 
     setSelectedFolders(new Set());
     setLastSelectedFolder(null);
 
-    if (isShift && lastSelectedDoc && filteredDocItems.length > 0) {
-      const docIdList = filteredDocItems.map((d) => d.doc.id);
+    if (isDouble && selectedDocs.has(docId)) {
+      setLastSelectedDoc(docId);
+      return;
+    }
+
+    if (!isShift && !isMeta && selectedDocs.has(docId)) {
+      setLastSelectedDoc(docId);
+      return;
+    }
+
+    if (isShift && lastSelectedDoc && sortedDocItems.length > 0) {
+      const docIdList = sortedDocItems.map((d) => d.doc.id);
       const lastIdx = docIdList.indexOf(lastSelectedDoc);
       const currentIdx = docIdList.indexOf(docId);
       if (lastIdx !== -1 && currentIdx !== -1) {
         const start = Math.min(lastIdx, currentIdx);
         const end = Math.max(lastIdx, currentIdx);
         const range = docIdList.slice(start, end + 1);
-        setSelectedDocs((prev) => new Set([...prev, ...range]));
+        const nextSelected = new Set([...selectedDocs, ...range]);
+        const nextOrder = selectedDocOrder.filter((id) => nextSelected.has(id));
+        range.forEach((id) => {
+          if (!nextOrder.includes(id)) nextOrder.push(id);
+        });
+        setSelectedDocs(nextSelected);
+        setSelectedDocOrder(nextOrder);
+        setLastSelectedDoc(docId);
         return;
       }
     }
 
     if (isMeta) {
-      setSelectedDocs((prev) => {
-        const next = new Set(prev);
-        if (next.has(docId)) {
-          next.delete(docId);
-        } else {
-          next.add(docId);
-        }
-        return next;
-      });
+      const nextSelected = new Set(selectedDocs);
+      let nextOrder = [...selectedDocOrder];
+      if (nextSelected.has(docId)) {
+        nextSelected.delete(docId);
+        nextOrder = nextOrder.filter((id) => id !== docId);
+      } else {
+        nextSelected.add(docId);
+        nextOrder.push(docId);
+      }
+      setSelectedDocs(nextSelected);
+      setSelectedDocOrder(nextOrder);
     } else {
       setSelectedDocs(new Set([docId]));
+      setSelectedDocOrder([docId]);
     }
     setLastSelectedDoc(docId);
-  }, [lastSelectedDoc, filteredDocItems]);
+  }, [lastSelectedDoc, sortedDocItems, selectedDocs, selectedDocOrder]);
+
+  const handleDocDoubleClick = useCallback(async (doc) => {
+    if (canOpenImageStack && selectedDocs.has(doc.id)) {
+      await handleOpenImageStack(Array.from(selectedDocs), selectedDocOrder);
+      return;
+    }
+    await handleOpenDoc(doc);
+  }, [canOpenImageStack, selectedDocs, selectedDocOrder, handleOpenImageStack, handleOpenDoc]);
 
   const handleSelectFolder = useCallback((folderPath, event) => {
     const isShift = event?.shiftKey;
     const isMeta = event?.metaKey || event?.ctrlKey;
 
     setSelectedDocs(new Set());
+    setSelectedDocOrder([]);
     setLastSelectedDoc(null);
 
     if (isShift && lastSelectedFolder && filteredFolderItems.length > 0) {
@@ -1241,6 +1335,8 @@ function LibraryWindow() {
     } else if (action === 'cut') {
       setClipboard({ docs: targetDocs, folders: targetFolders, mode: 'cut' });
       clearSelection();
+    } else if (action === 'openImageStack') {
+      await handleOpenImageStack(targetDocs, selectedDocOrder);
     } else if (action === 'paste') {
       await handlePaste();
     } else if (action === 'delete') {
@@ -1260,7 +1356,7 @@ function LibraryWindow() {
     } else if (action === 'newFolder') {
       openNewFolderPopup();
     }
-  }, [api, contextMenu, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView, closeContextMenu, openNewFolderPopup, handlePaste]);
+  }, [api, contextMenu, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView, closeContextMenu, openNewFolderPopup, handlePaste, handleOpenImageStack]);
 
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
@@ -1292,9 +1388,10 @@ function LibraryWindow() {
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
         e.preventDefault();
         // Select all in current view
-        const allDocIds = filteredDocItems.map((d) => d.doc.id);
+        const allDocIds = sortedDocItems.map((d) => d.doc.id);
         const allFolderPaths = filteredFolderItems.map((f) => f.path);
         setSelectedDocs(new Set(allDocIds));
+        setSelectedDocOrder(allDocIds);
         setSelectedFolders(new Set(allFolderPaths));
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'c' && hasSelection) {
         e.preventDefault();
@@ -1362,19 +1459,11 @@ function LibraryWindow() {
           <div className="library-title">Library</div>
           <div className="library-subtitle">All your scores, in one place.</div>
         </div>
-        <div className="library-actions">
-          <button type="button" className="ghost" onClick={handleImportFiles}>
-            Import Files
-          </button>
-          <button type="button" className="ghost" onClick={handleAddFolder}>
-            Add Folder
-          </button>
-        </div>
+        <div className="library-actions" />
       </header>
       <div className="library-body">
         <aside className="library-sidebar">
           <div className="library-section">
-            <div className="section-title">Folders</div>
             <input
               type="search"
               className="library-search"
@@ -1382,21 +1471,6 @@ function LibraryWindow() {
               value={sidebarSearch}
               onChange={(event) => setSidebarSearch(event.target.value)}
             />
-            <div className="folder-list">
-              {sidebarFolders.map((folder) => (
-                <button
-                  key={folder}
-                  type="button"
-                  className={`source-item compact ${selectedView === folder ? 'active' : ''}`}
-                  onClick={() => setSelectedView(folder)}
-                >
-                  <span className="source-name">{basenameForPath(folder)}</span>
-                </button>
-              ))}
-              {!sidebarLoading && !sidebarFolders.length && (
-                <div className="source-empty">No folders yet</div>
-              )}
-            </div>
           </div>
           <div className="library-section">
             <div className="section-title">Position</div>
@@ -1495,16 +1569,11 @@ function LibraryWindow() {
                 </div>
               </div>
             </div>
-            <div className="content-path">
-              {positionText}
-            </div>
-            <div className="content-meta">{formatItemCount(totalItemCount)}</div>
           </div>
           {loading && <div className="empty">Loading library...</div>}
           {!loading && (
             <>
               <div className="content-section folders">
-                <div className="content-section-title">Folders</div>
                 <div className={`library-items ${viewMode}`}>
                   {filteredFolderItems.map((folder) => (
                     <div
@@ -1550,7 +1619,6 @@ function LibraryWindow() {
                 )}
               </div>
               <div className="content-section scores">
-                <div className="content-section-title">Scores</div>
                 <div className={`library-items ${viewMode}`}>
                   {sortedDocItems.map((item) => (
                     <div
@@ -1560,7 +1628,7 @@ function LibraryWindow() {
                       onDragStart={(e) => handleDocDragStart(e, item.doc.id)}
                       onDragEnd={handleDocDragEnd}
                       onClick={(e) => handleSelectDoc(item.doc, e)}
-                      onDoubleClick={() => handleOpenDoc(item.doc)}
+                      onDoubleClick={() => handleDocDoubleClick(item.doc)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1575,7 +1643,11 @@ function LibraryWindow() {
                       role="button"
                       tabIndex={0}
                     >
-                      <DocPreview filePath={item.doc.file_path} label={item.doc.title || 'Preview'} />
+                      <DocPreview
+                        filePath={item.doc.file_path}
+                        label={item.doc.title || 'Preview'}
+                        fileType={item.doc.file_type}
+                      />
                       <div className="item-title">{item.doc.title || 'Untitled'}</div>
                       <div className="item-meta">
                         <span>{item.doc.page_count || '--'} pages</span>
@@ -1620,6 +1692,18 @@ function LibraryWindow() {
           )}
           {(contextMenu.type === 'folder' || contextMenu.type === 'doc') && (
             <>
+              {contextMenu.type === 'doc' && canOpenImageStack && selectedDocs.has(contextMenu.target) && (
+                <>
+                  <button
+                    type="button"
+                    className="context-menu-item"
+                    onClick={() => handleContextMenuAction('openImageStack')}
+                  >
+                    Open as Stack
+                  </button>
+                  <div className="context-menu-divider" />
+                </>
+              )}
               <button
                 type="button"
                 className="context-menu-item"
@@ -1691,6 +1775,8 @@ function LibraryWindow() {
   );
 }
 
+const EMPTY_ARRAY = [];
+
 function MainApp() {
   const MIN_ZOOM = 0.1;
   const MAX_ZOOM = 3;
@@ -1701,6 +1787,7 @@ function MainApp() {
   const { documents, libraryRoot, loading, chooseLibraryRoot, importFiles, refresh } = useLibrary(api);
   const [search, setSearch] = useState('');
   const [selectedDoc, setSelectedDoc] = useState(null);
+  const [imageBundle, setImageBundle] = useState(null);
   const [sidebarSortKey, setSidebarSortKey] = useState('last_opened');
   const [sidebarSortDirection, setSidebarSortDirection] = useState('desc');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1762,10 +1849,12 @@ function MainApp() {
     container: null
   });
   const clampedPagesPerView = Math.min(Math.max(pagesPerView, 1), 3);
+  const imageFiles = imageBundle?.paths || EMPTY_ARRAY;
 
   const {
     pdfDoc,
     imageUrl,
+    imagePages,
     fileType,
     pageCount,
     loading: pageLoading,
@@ -1782,7 +1871,7 @@ function MainApp() {
     setSinglePageIndex,
     onScroll,
     pendingScroll
-  } = useReader(api, selectedDoc);
+  } = useReader(api, selectedDoc, imageFiles);
 
   const activateStage = useCallback(() => {
     setStageActive(true);
@@ -1821,6 +1910,18 @@ function MainApp() {
   useEffect(() => {
     let cancelled = false;
 
+    if (fileType === 'image-set' && imagePages.length) {
+      const maxWidth = Math.max(...imagePages.map((page) => page.width || 0));
+      const maxHeight = Math.max(...imagePages.map((page) => page.height || 0));
+      if (maxWidth && maxHeight) {
+        pageBaseRef.current = { width: maxWidth, height: maxHeight };
+        computeFitScale();
+        return () => {
+          cancelled = true;
+        };
+      }
+    }
+
     if (fileType === 'image' && imageUrl) {
       // For images, load and get dimensions
       const img = new Image();
@@ -1856,7 +1957,7 @@ function MainApp() {
     return () => {
       cancelled = true;
     };
-  }, [pdfDoc, imageUrl, fileType, computeFitScale]);
+  }, [pdfDoc, imageUrl, fileType, imagePages, computeFitScale]);
 
   useEffect(() => {
     const stage = readerStageRef.current;
@@ -2243,6 +2344,7 @@ function MainApp() {
 
   const handleSelect = useCallback((doc) => {
     setSelectedDoc(doc);
+    setImageBundle(null);
     setSinglePageIndex(doc.page_index || 0);
   }, [setSelectedDoc, setSinglePageIndex]);
 
@@ -2270,15 +2372,31 @@ function MainApp() {
     }
   }, [importFiles, documents, handleSelect]);
 
+  const handleOpenImages = useCallback(async () => {
+    if (!api?.reader?.openImages) return;
+    const paths = await api.reader.openImages();
+    if (!paths || !paths.length) return;
+    const parent = getParentDir(paths[0]);
+    const labelBase = parent ? basenameForPath(parent) : 'Images';
+    setImageBundle({
+      paths,
+      title: `${labelBase} (${paths.length})`
+    });
+    setSelectedDoc(null);
+    setSinglePageIndex(0);
+  }, [api]);
+
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
     const offImport = api.onMenuImportPdf(() => handleImport());
     const offLocation = api.onMenuLibraryLocation(() => chooseLibraryRoot());
+    const offImages = api.onMenuOpenImages ? api.onMenuOpenImages(() => handleOpenImages()) : null;
     return () => {
       if (offImport) offImport();
       if (offLocation) offLocation();
+      if (offImages) offImages();
     };
-  }, [api, handleImport, chooseLibraryRoot]);
+  }, [api, handleImport, chooseLibraryRoot, handleOpenImages]);
 
   useEffect(() => {
     if (!api?.onReaderOpenDocument) return undefined;
@@ -2291,6 +2409,24 @@ function MainApp() {
   }, [api, handleOpenDocById]);
 
   useEffect(() => {
+    if (!api?.onReaderOpenImageStack) return undefined;
+    const unsubscribe = api.onReaderOpenImageStack((paths) => {
+      if (!paths || !paths.length) return;
+      const parent = getParentDir(paths[0]);
+      const labelBase = parent ? basenameForPath(parent) : 'Images';
+      setImageBundle({
+        paths,
+        title: `${labelBase} (${paths.length})`
+      });
+      setSelectedDoc(null);
+      setSinglePageIndex(0);
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [api]);
+
+  useEffect(() => {
     if (pageCount === 0) return;
     const maxStart = Math.max(pageCount - clampedPagesPerView, 0);
     if (singlePageIndex > maxStart) {
@@ -2298,11 +2434,12 @@ function MainApp() {
     }
   }, [pageCount, clampedPagesPerView, singlePageIndex, setSinglePageIndex]);
 
-  // Get current folder path from selected document
+  // Get current folder path from selected document or image stack
   const currentFolderPath = useMemo(() => {
-    if (!selectedDoc?.file_path) return null;
-    return getParentDir(selectedDoc.file_path);
-  }, [selectedDoc]);
+    if (selectedDoc?.file_path) return getParentDir(selectedDoc.file_path);
+    if (imageBundle?.paths?.length) return getParentDir(imageBundle.paths[0]);
+    return null;
+  }, [selectedDoc, imageBundle]);
 
   // Filter documents to show only those in the same folder as selected doc
   const filteredDocuments = useMemo(() => {
@@ -2365,17 +2502,23 @@ function MainApp() {
     return basenameForPath(currentFolderPath);
   }, [currentFolderPath]);
 
+  const hasActiveDoc = Boolean(selectedDoc || imageBundle);
+  const activeTitle = imageBundle?.title || selectedDoc?.title || 'Select a score';
+  const activePagesText = hasActiveDoc
+    ? `${pageCount || selectedDoc?.page_count || 0} pages loaded`
+    : 'PDF reader with guided practice tools';
+
   const sidebarVisible = sidebarPinned || sidebarHover;
   const maxStartIndex = Math.max(pageCount - clampedPagesPerView, 0);
-  const isPrevDisabled = !selectedDoc || singlePageIndex <= 0;
-  const isNextDisabled = !selectedDoc || pageCount === 0 || singlePageIndex >= maxStartIndex;
+  const isPrevDisabled = !hasActiveDoc || singlePageIndex <= 0;
+  const isNextDisabled = !hasActiveDoc || pageCount === 0 || singlePageIndex >= maxStartIndex;
   const singlePageIndices = useMemo(() => {
-    if (!selectedDoc || !pdfDoc) return [];
+    if (!hasActiveDoc || pageCount === 0) return [];
     const remaining = pageCount - singlePageIndex;
     const count = Math.min(clampedPagesPerView, remaining);
     if (count <= 0) return [];
     return Array.from({ length: count }, (_, offset) => singlePageIndex + offset);
-  }, [selectedDoc, pdfDoc, pageCount, singlePageIndex, clampedPagesPerView]);
+  }, [hasActiveDoc, pageCount, singlePageIndex, clampedPagesPerView]);
 
   return (
     <div
@@ -2492,10 +2635,8 @@ function MainApp() {
         <section className="reader" ref={readerRef}>
           <div className="reader-toolbar">
             <div className="doc-meta">
-              <div id="doc-title" className="doc-title">{selectedDoc?.title || 'Select a score'}</div>
-              <div id="doc-sub" className="doc-sub">
-                {selectedDoc ? `${pageCount || selectedDoc.page_count || 0} pages loaded` : 'PDF reader with guided practice tools'}
-              </div>
+              <div id="doc-title" className="doc-title">{activeTitle}</div>
+              <div id="doc-sub" className="doc-sub">{activePagesText}</div>
             </div>
             <div className="toolbar-controls">
               <div className="control-group">
@@ -2693,7 +2834,7 @@ function MainApp() {
                 </div>
               )}
               {pdfError && <div className="empty">Failed to load: {pdfError}</div>}
-              {!pageLoading && !selectedDoc && (
+              {!pageLoading && !hasActiveDoc && (
                 <div className="empty-state">
                   <div className="empty-icon">
                     <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2712,6 +2853,14 @@ function MainApp() {
                       <line x1="12" y1="3" x2="12" y2="15" />
                     </svg>
                     Import Files
+                  </button>
+                  <button className="empty-btn secondary" onClick={handleOpenImages}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="16" rx="2" ry="2" />
+                      <circle cx="9" cy="10" r="2" />
+                      <path d="M21 17l-5.5-5.5L9 18l-3-3-3 3" />
+                    </svg>
+                    Open Images
                   </button>
                 </div>
               )}
@@ -2735,6 +2884,20 @@ function MainApp() {
                     />
                   </div>
                 )}
+                {fileType === 'image-set' && imagePages.length > 0 && imagePages.map((page, index) => (
+                  <div className="page-shell" key={`image-${page.path}-${index}`}>
+                    <img
+                      src={page.url}
+                      alt={imageBundle?.title || 'Image'}
+                      className="image-page"
+                      style={{
+                        width: page.width ? page.width * zoom * fitScale : 'auto',
+                        height: page.height ? page.height * zoom * fitScale : 'auto'
+                      }}
+                      draggable={false}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -2768,7 +2931,7 @@ function MainApp() {
                 </div>
               )}
                 {pdfError && <div className="empty">Failed to load: {pdfError}</div>}
-                {!pageLoading && !selectedDoc && (
+                {!pageLoading && !hasActiveDoc && (
                   <div className="empty-state">
                     <div className="empty-icon">
                       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2787,6 +2950,14 @@ function MainApp() {
                         <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
                       Import Files
+                    </button>
+                    <button className="empty-btn secondary" onClick={handleOpenImages}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="16" rx="2" ry="2" />
+                        <circle cx="9" cy="10" r="2" />
+                        <path d="M21 17l-5.5-5.5L9 18l-3-3-3 3" />
+                      </svg>
+                      Open Images
                     </button>
                   </div>
                 )}
@@ -2813,6 +2984,28 @@ function MainApp() {
                         draggable={false}
                       />
                     </div>
+                  </div>
+                )}
+                {!pageLoading && fileType === 'image-set' && imagePages.length > 0 && (
+                  <div className="page-stack single-stack" style={{ '--pages-per-view': clampedPagesPerView }}>
+                    {singlePageIndices.map((index) => {
+                      const page = imagePages[index];
+                      if (!page) return null;
+                      return (
+                        <div className="page-shell" key={`image-${page.path}-${index}`}>
+                          <img
+                            src={page.url}
+                            alt={imageBundle?.title || 'Image'}
+                            className="image-page"
+                            style={{
+                              width: page.width ? page.width * zoom * fitScale : 'auto',
+                              height: page.height ? page.height * zoom * fitScale : 'auto'
+                            }}
+                            draggable={false}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
