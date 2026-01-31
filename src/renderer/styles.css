@@ -747,6 +747,29 @@ button.accent {
 .record-error {
   font-size: 11px;
   color: #c74a3a;
+  display: grid;
+  gap: 6px;
+}
+
+.permission-link {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.permission-link:hover {
+  text-decoration: underline;
+  transform: none;
+  box-shadow: none;
+}
+
+.permission-hint {
+  font-size: 10px;
+  color: var(--ink-soft);
 }
 
 .record-launch {
@@ -2058,6 +2081,8 @@ button.accent {
 .tuner-error {
   font-size: 12px;
   color: #b45842;
+  display: grid;
+  gap: 6px;
 }
 
 .tuner-clarity {

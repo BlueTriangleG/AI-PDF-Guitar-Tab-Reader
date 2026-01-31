@@ -16,7 +16,7 @@ const STANDARD_TUNING = [
 ];
 const I18N = {
   en: {
-    appName: 'AI PDF Guitar Tab Reader',
+    appName: 'AI Guitar Reader',
     defaultLabel: 'Default',
     autoLabel: 'Auto',
     scoresCount: '{count} Score',
@@ -135,6 +135,10 @@ const I18N = {
     settingsLanguage: 'Language',
     languageEnglish: 'English',
     languageChinese: '中文',
+    settingsOpenSystem: 'Open System Settings',
+    settingsOpenMicrophone: 'Open Microphone Settings',
+    settingsOpenCamera: 'Open Camera Settings',
+    settingsPermissionHint: 'Enable access in System Settings',
     metronomeTitle: 'Metronome',
     metronomeSubtitle: 'Feel the pulse. Keep the groove.',
     metronomeStart: 'Start',
@@ -170,7 +174,7 @@ const I18N = {
     tunerMicDenied: 'Microphone permission denied.'
   },
   zh: {
-    appName: 'AI PDF Guitar Tab Reader',
+    appName: 'AI 吉他阅读器',
     defaultLabel: '默认',
     autoLabel: '自动',
     scoresCount: '{count} 个谱子',
@@ -289,6 +293,10 @@ const I18N = {
     settingsLanguage: '语言',
     languageEnglish: 'English',
     languageChinese: '中文',
+    settingsOpenSystem: '打开系统设置',
+    settingsOpenMicrophone: '打开麦克风设置',
+    settingsOpenCamera: '打开摄像头设置',
+    settingsPermissionHint: '请在系统设置中允许访问',
     metronomeTitle: '节拍器',
     metronomeSubtitle: '感受节拍，保持律动。',
     metronomeStart: '开始',
@@ -1426,7 +1434,23 @@ function TunerWindow() {
             </div>
           </div>
         )}
-        {error && <div className="tuner-error">{error}</div>}
+        {error && (
+          <div className="tuner-error">
+            <span>{error}</span>
+            {(error === t('tunerMicDenied') || error === t('tunerMicNotSupported')) && (
+              <button
+                type="button"
+                className="permission-link"
+                onClick={() => api?.app?.openSystemSettings?.('microphone')}
+              >
+                {t('settingsOpenMicrophone')}
+              </button>
+            )}
+            {(error === t('tunerMicDenied') || error === t('tunerMicNotSupported')) && (
+              <span className="permission-hint">{t('settingsPermissionHint')}</span>
+            )}
+          </div>
+        )}
         <div className="tuner-clarity">
           <span>{t('tunerClarity')}</span>
           <div className="clarity-bar">
@@ -2404,6 +2428,18 @@ function LibraryWindow() {
     return basenameForPath(selectedView);
   }, [selectedView, t]);
 
+  const handleBlankContextMenu = useCallback((event) => {
+    if (event.target.closest('.context-menu')) return;
+    if (event.target.closest('.folder-entry') || event.target.closest('.item-card')) return;
+    event.preventDefault();
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      type: 'blank',
+      target: null
+    });
+  }, []);
+
   return (
     <div
       className={`library-window ${isDragging ? 'dragging' : ''} ${hasSelection ? 'selecting' : ''}`}
@@ -2411,6 +2447,7 @@ function LibraryWindow() {
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onContextMenu={handleBlankContextMenu}
     >
       {isDragging && (
         <div className="drop-overlay">
@@ -2482,17 +2519,8 @@ function LibraryWindow() {
             }
           }}
           onContextMenu={(e) => {
-            if (e.target === e.currentTarget || e.target.closest('.content-section')) {
-              if (!e.target.closest('.folder-entry') && !e.target.closest('.item-card')) {
-                e.preventDefault();
-                setContextMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  type: 'blank',
-                  target: null
-                });
-              }
-            }
+            e.stopPropagation();
+            handleBlankContextMenu(e);
           }}
         >
           <div className="library-content-head">
@@ -3660,7 +3688,6 @@ function MainApp() {
                 <div className="library-item-title">{doc.title || t('commonUntitled')}</div>
                 <div className="library-item-meta">
                   <span>{doc.page_count ? formatPagesCount(t, doc.page_count) : '--'}</span>
-                  <span>{doc.last_opened ? t('readerResume') : t('readerNew')}</span>
                 </div>
               </div>
             ))}
@@ -4691,7 +4718,32 @@ function RecordingWindow() {
           </div>
         )}
         {recordingStatus && <div className="record-status">{recordingStatus}</div>}
-        {recordingError && <div className="record-error">{recordingError}</div>}
+        {recordingError && (
+          <div className="record-error">
+            <span>{recordingError}</span>
+            {(recordingError === t('recordingMicDenied') || recordingError === t('recordingMicUnavailable')) && (
+              <button
+                type="button"
+                className="permission-link"
+                onClick={() => api?.app?.openSystemSettings?.('microphone')}
+              >
+                {t('settingsOpenMicrophone')}
+              </button>
+            )}
+            {recordingError === t('recordingCameraUnavailable') && (
+              <button
+                type="button"
+                className="permission-link"
+                onClick={() => api?.app?.openSystemSettings?.('camera')}
+              >
+                {t('settingsOpenCamera')}
+              </button>
+            )}
+            {(recordingError === t('recordingMicDenied') || recordingError === t('recordingMicUnavailable') || recordingError === t('recordingCameraUnavailable')) && (
+              <span className="permission-hint">{t('settingsPermissionHint')}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

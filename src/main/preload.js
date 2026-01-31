@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('api', {
   app: {
     getLanguage: () => ipcRenderer.invoke('app:getLanguage'),
     setLanguage: (language) => ipcRenderer.invoke('app:setLanguage', language),
+    openSystemSettings: (kind) => ipcRenderer.invoke('app:openSystemSettings', kind),
     onLanguageChanged: (callback) => {
       const handler = (_event, language) => callback(language);
       ipcRenderer.on('app:language-changed', handler);

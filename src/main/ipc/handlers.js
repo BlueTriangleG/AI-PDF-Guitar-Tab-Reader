@@ -1,4 +1,4 @@
-const { BrowserWindow, ipcMain, dialog, app } = require('electron');
+const { BrowserWindow, ipcMain, dialog, app, shell } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -291,6 +291,20 @@ function registerIpcHandlers({
 
   ipcMain.handle('app:getLanguage', async () => {
     return services.library.getSetting('app.language') || 'en';
+  });
+
+  ipcMain.handle('app:openSystemSettings', async (_event, kind) => {
+    if (process.platform !== 'darwin') return false;
+    let url = 'x-apple.systempreferences:';
+    if (kind === 'microphone') {
+      url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone';
+    } else if (kind === 'camera') {
+      url = 'x-apple.systempreferences:com.apple.preference.security?Privacy_Camera';
+    } else {
+      url = 'x-apple.systempreferences:com.apple.preference.security?Privacy';
+    }
+    await shell.openExternal(url);
+    return true;
   });
 
   ipcMain.handle('app:setLanguage', async (_event, language) => {

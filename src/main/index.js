@@ -17,6 +17,8 @@ let recordingWindow;
 let settingsWindow;
 const readerWindows = new Set();
 
+app.setName('AI Guitar Reader');
+
 app.whenReady().then(async () => {
   const services = await initServices();
   let currentLanguage = services.library.getSetting('app.language') || 'en';
