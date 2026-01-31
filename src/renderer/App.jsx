@@ -5,14 +5,22 @@ import { useReader } from './view_models/useReader.js';
 const api = window.api;
 const LOOKAHEAD_MS = 25;
 const SCHEDULE_AHEAD_SEC = 0.12;
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const STANDARD_TUNING = [
-  { label: 'E2', name: 'E', freq: 82.41 },
-  { label: 'A2', name: 'A', freq: 110.0 },
-  { label: 'D3', name: 'D', freq: 146.83 },
-  { label: 'G3', name: 'G', freq: 196.0 },
-  { label: 'B3', name: 'B', freq: 246.94 },
-  { label: 'E4', name: 'E', freq: 329.63 }
+  { note: 'E', octave: 2 },
+  { note: 'A', octave: 2 },
+  { note: 'D', octave: 3 },
+  { note: 'G', octave: 3 },
+  { note: 'B', octave: 3 },
+  { note: 'E', octave: 4 }
 ];
+
+function noteToFrequency(note, octave) {
+  const noteIndex = NOTE_NAMES.indexOf(note);
+  if (noteIndex === -1) return 0;
+  const midi = (octave + 1) * 12 + noteIndex;
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
 
 function getAppView() {
   if (typeof window === 'undefined') return 'main';
@@ -511,7 +519,7 @@ function MetronomeWindow() {
   );
 }
 
-function detectPitch(buffer, sampleRate) {
+function detectPitch(buffer, sampleRate, minFreq, maxFreq) {
   const size = buffer.length;
   let rms = 0;
   for (let i = 0; i < size; i += 1) {
@@ -519,18 +527,19 @@ function detectPitch(buffer, sampleRate) {
     rms += val * val;
   }
   rms = Math.sqrt(rms / size);
-  if (rms < 0.01) return null;
+  if (rms < 0.00008) return null;
 
   let r1 = 0;
   let r2 = size - 1;
-  const threshold = 0.2;
+  const threshold = 0.0008;
   while (r1 < size / 2 && Math.abs(buffer[r1]) < threshold) r1 += 1;
   while (r2 > size / 2 && Math.abs(buffer[r2]) < threshold) r2 -= 1;
 
   const trimmed = buffer.slice(r1, r2);
   const trimmedSize = trimmed.length;
-  const c = new Array(trimmedSize).fill(0);
+  if (trimmedSize < 2) return null;
 
+  const c = new Array(trimmedSize).fill(0);
   for (let lag = 0; lag < trimmedSize; lag += 1) {
     let sum = 0;
     for (let i = 0; i < trimmedSize - lag; i += 1) {
@@ -550,7 +559,6 @@ function detectPitch(buffer, sampleRate) {
       maxPos = i;
     }
   }
-
   if (maxPos <= 0) return null;
 
   let T0 = maxPos;
@@ -567,7 +575,8 @@ function detectPitch(buffer, sampleRate) {
 
   const frequency = sampleRate / T0;
   const clarity = c[0] ? maxVal / c[0] : 0;
-  if (frequency < 40 || frequency > 1200) return null;
+  if (minFreq && frequency < minFreq) return null;
+  if (maxFreq && frequency > maxFreq) return null;
   return { frequency, clarity };
 }
 
@@ -577,7 +586,17 @@ function TunerWindow() {
   const [clarity, setClarity] = useState(0);
   const [error, setError] = useState('');
   const [selectedStringIndex, setSelectedStringIndex] = useState(0);
+  const [tunings, setTunings] = useState(() => ([
+    { id: 'standard', name: 'Standard', strings: STANDARD_TUNING }
+  ]));
+  const [activeTuningId, setActiveTuningId] = useState('standard');
+  const [tunerView, setTunerView] = useState('tune');
+  const [editingId, setEditingId] = useState('standard');
+  const [draftName, setDraftName] = useState('Standard');
+  const [draftStrings, setDraftStrings] = useState(STANDARD_TUNING);
   const [meterOffset, setMeterOffset] = useState(0);
+  const [completedStrings, setCompletedStrings] = useState(() => new Set());
+  const inTuneStartRef = useRef(null);
 
   const audioRef = useRef(null);
   const analyserRef = useRef(null);
@@ -587,13 +606,92 @@ function TunerWindow() {
   const lastUpdateRef = useRef(0);
   const meterRef = useRef(null);
 
+  useEffect(() => {
+    if (!api?.settings) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const saved = await api.settings.get('tuner.tunings');
+        const savedActive = await api.settings.get('tuner.active');
+        if (!active) return;
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTunings(parsed);
+          }
+        }
+        if (savedActive) {
+          setActiveTuningId(savedActive);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!api?.settings) return;
+    api.settings.set('tuner.tunings', JSON.stringify(tunings));
+    api.settings.set('tuner.active', activeTuningId);
+  }, [tunings, activeTuningId]);
+
+  const activeTuning = useMemo(() => {
+    return tunings.find((t) => t.id === activeTuningId) || tunings[0];
+  }, [tunings, activeTuningId]);
+
+  useEffect(() => {
+    setSelectedStringIndex(0);
+    setCompletedStrings(new Set());
+  }, [activeTuningId]);
+
+  const editingTuning = useMemo(() => {
+    return tunings.find((t) => t.id === editingId) || tunings[0];
+  }, [tunings, editingId]);
+
+  useEffect(() => {
+    setDraftName(editingTuning?.name || 'Tuning');
+    setDraftStrings(editingTuning?.strings || STANDARD_TUNING);
+  }, [editingTuning]);
+
   const currentTarget = useMemo(() => {
-    return STANDARD_TUNING[selectedStringIndex] || STANDARD_TUNING[0];
-  }, [selectedStringIndex]);
+    const strings = activeTuning?.strings || STANDARD_TUNING;
+    return strings[selectedStringIndex] || strings[0];
+  }, [selectedStringIndex, activeTuning]);
+
+  const stringSpecs = useMemo(() => {
+    const strings = activeTuning?.strings || STANDARD_TUNING;
+    return strings.map((s) => ({
+      ...s,
+      label: `${s.note}${s.octave}`,
+      freq: noteToFrequency(s.note, s.octave)
+    }));
+  }, [activeTuning]);
+
+  const draftSpecs = useMemo(() => {
+    const strings = draftStrings || STANDARD_TUNING;
+    return strings.map((s) => ({
+      ...s,
+      label: `${s.note}${s.octave}`,
+      freq: noteToFrequency(s.note, s.octave)
+    }));
+  }, [draftStrings]);
+
+  const tuningRange = useMemo(() => {
+    const freqs = stringSpecs.map((s) => s.freq).filter(Boolean);
+    if (!freqs.length) return { min: 70, max: 360 };
+    const min = Math.min(...freqs) * 0.75;
+    const max = Math.max(...freqs) * 1.35;
+    return { min, max };
+  }, [stringSpecs]);
 
   const centsOffset = useMemo(() => {
     if (!frequency) return 0;
-    return 1200 * Math.log2(frequency / currentTarget.freq);
+    const targetFreq = noteToFrequency(currentTarget.note, currentTarget.octave);
+    if (!targetFreq) return 0;
+    return 1200 * Math.log2(frequency / targetFreq);
   }, [frequency, currentTarget]);
 
   const isInTune = Math.abs(centsOffset) <= 5;
@@ -643,8 +741,10 @@ function TunerWindow() {
         const ctx = new AudioContext();
         audioRef.current = ctx;
         const source = ctx.createMediaStreamSource(stream);
+        await ctx.resume();
         const analyser = ctx.createAnalyser();
-        analyser.fftSize = 2048;
+        analyser.fftSize = 4096;
+        analyser.smoothingTimeConstant = 0.1;
         analyserRef.current = analyser;
         source.connect(analyser);
 
@@ -652,8 +752,8 @@ function TunerWindow() {
         const update = (timestamp) => {
           if (!analyserRef.current || !audioRef.current) return;
           analyserRef.current.getFloatTimeDomainData(buffer);
-          const result = detectPitch(buffer, audioRef.current.sampleRate);
-          if (result && result.frequency && result.clarity > 0.08) {
+          const result = detectPitch(buffer, audioRef.current.sampleRate, tuningRange.min, tuningRange.max);
+          if (result && result.frequency) {
             historyRef.current.push(result.frequency);
             if (historyRef.current.length > 5) historyRef.current.shift();
             const sorted = [...historyRef.current].sort((a, b) => a - b);
@@ -687,50 +787,210 @@ function TunerWindow() {
     };
   }, [listening]);
 
+  useEffect(() => {
+    if (!listening) {
+      inTuneStartRef.current = null;
+      return;
+    }
+    if (!frequency || !isInTune) {
+      inTuneStartRef.current = null;
+      return;
+    }
+    if (!inTuneStartRef.current) {
+      inTuneStartRef.current = performance.now();
+      return;
+    }
+    const elapsed = performance.now() - inTuneStartRef.current;
+    if (elapsed < 600) return;
+    setCompletedStrings((prev) => {
+      const next = new Set(prev);
+      next.add(selectedStringIndex);
+      return next;
+    });
+    inTuneStartRef.current = null;
+    setSelectedStringIndex((prev) => {
+      for (let i = prev + 1; i < stringSpecs.length; i += 1) {
+        if (!completedStrings.has(i)) return i;
+      }
+      for (let i = 0; i < prev; i += 1) {
+        if (!completedStrings.has(i)) return i;
+      }
+      return prev;
+    });
+  }, [frequency, isInTune, listening, selectedStringIndex, completedStrings, stringSpecs]);
+
   return (
     <div className={`tuner-window ${listening ? 'listening' : ''}`}>
       <div className="tuner-drag" aria-hidden="true" />
       <header className="tuner-head">
         <div className="tuner-title-block">
           <div className="tuner-title">Tuner</div>
-          <div className="tuner-sub">Select a string to tune</div>
+          <div className="tuner-sub">
+            {tunerView === 'tune' ? 'Pick a tuning and tune each string' : 'Manage your tuning sets'}
+          </div>
         </div>
         <button
           type="button"
-          className={`tuner-toggle ${listening ? 'active' : ''}`}
-          onClick={() => setListening((prev) => !prev)}
+          className="tuner-mode"
+          onClick={() => {
+            setTunerView((prev) => {
+              const next = prev === 'tune' ? 'manage' : 'tune';
+              if (next === 'manage') setEditingId(activeTuningId);
+              return next;
+            });
+          }}
         >
-          <span>{listening ? 'Stop' : 'Start'}</span>
+          {tunerView === 'tune' ? 'Edit Tunings' : 'Back to Tuner'}
         </button>
       </header>
       <div className="tuner-main">
-        <div className={`tuner-note ${isInTune ? 'in' : ''}`}>{currentTarget.label}</div>
-        <div className="tuner-frequency">
-          {frequency ? `${frequency.toFixed(2)} Hz` : '--'}
-        </div>
-        <div className="tuner-meter" ref={meterRef}>
-          <div className="tuner-meter-track" />
-          <div
-            className={`tuner-meter-needle ${isInTune ? 'in' : ''}`}
-            style={{ transform: `translateX(${meterOffset}px) translateY(-50%)` }}
-          />
-        </div>
-        <div className="tuner-offset">
-          {frequency ? `${centsOffset > 0 ? '+' : ''}${centsOffset.toFixed(1)} cents` : 'Listen for a note'}
-        </div>
-        <div className="tuner-strings">
-          {STANDARD_TUNING.map((string) => (
-            <button
-              key={string.label}
-              type="button"
-              className={`tuner-string ${string.label === currentTarget.label ? 'active' : ''}`}
-              onClick={() => setSelectedStringIndex(STANDARD_TUNING.indexOf(string))}
-            >
-              <span className="string-name">{string.name}</span>
-              <span className="string-label">{string.label}</span>
-            </button>
-          ))}
-        </div>
+        {tunerView === 'tune' ? (
+          <>
+            <div className="tuner-tuning-row">
+              <select
+                value={activeTuningId}
+                onChange={(event) => setActiveTuningId(event.target.value)}
+                className="tuner-select"
+              >
+                {tunings.map((tuning) => (
+                  <option key={tuning.id} value={tuning.id}>{tuning.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="tuner-meter" ref={meterRef}>
+              <div className="tuner-meter-track" />
+              <div
+                className={`tuner-meter-needle ${isInTune ? 'in' : ''}`}
+                style={{ transform: `translateX(${meterOffset}px) translateY(-50%)` }}
+              />
+            </div>
+            <div className="tuner-strings">
+              {stringSpecs.map((string, index) => (
+                <button
+                  key={string.label}
+                  type="button"
+                  className={`tuner-string ${index === selectedStringIndex ? 'active' : ''} ${completedStrings.has(index) ? 'done' : ''}`}
+                  onClick={() => setSelectedStringIndex(index)}
+                >
+                  <span className="string-order">{stringSpecs.length - index}</span>
+                  <span className="string-label">{string.label}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="tuner-manage">
+            <div className="tuner-manage-list">
+              {tunings.map((tuning) => (
+                <div key={tuning.id} className={`tuning-card ${tuning.id === editingId ? 'active' : ''}`}>
+                  <div
+                    className="tuning-card-main"
+                    onClick={() => {
+                      setEditingId(tuning.id);
+                      setActiveTuningId(tuning.id);
+                    }}
+                  >
+                    <div className="tuning-name">{tuning.name}</div>
+                    <div className="tuning-notes">
+                      {(tuning.strings || []).map((s) => `${s.note}${s.octave}`).join(' · ')}
+                    </div>
+                  </div>
+                  <div className="tuning-actions">
+                    {tuning.id !== 'standard' && (
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => {
+                          setTunings((prev) => prev.filter((t) => t.id !== tuning.id));
+                          if (activeTuningId === tuning.id) setActiveTuningId('standard');
+                          if (editingId === tuning.id) setEditingId('standard');
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="tuner-editor">
+              <input
+                type="text"
+                className="tuner-name"
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                placeholder="Tuning name"
+              />
+              <div className="tuner-edit">
+                {draftSpecs.map((string, index) => (
+                  <div key={`${string.label}-${index}`} className="tuner-edit-row">
+                    <span className="edit-order">{draftSpecs.length - index}</span>
+                    <select
+                      value={string.note}
+                      onChange={(event) => {
+                        const note = event.target.value;
+                        setDraftStrings((prev) => prev.map((s, i) => (i === index ? { ...s, note } : s)));
+                      }}
+                    >
+                      {NOTE_NAMES.map((note) => (
+                        <option key={note} value={note}>{note}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={string.octave}
+                      onChange={(event) => {
+                        const octave = parseInt(event.target.value, 10);
+                        setDraftStrings((prev) => prev.map((s, i) => (i === index ? { ...s, octave } : s)));
+                      }}
+                    >
+                      {[1, 2, 3, 4, 5].map((oct) => (
+                        <option key={oct} value={oct}>{oct}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <div className="tuner-editor-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const name = draftName.trim() || 'Custom';
+                    if (editingId === 'standard') {
+                      const id = `custom-${Date.now()}`;
+                      setTunings((prev) => ([
+                        ...prev,
+                        { id, name, strings: draftStrings.map((s) => ({ note: s.note, octave: s.octave })) }
+                      ]));
+                      setEditingId(id);
+                    } else {
+                      setTunings((prev) => prev.map((tuning) => (
+                        tuning.id === editingId
+                          ? { ...tuning, name, strings: draftStrings.map((s) => ({ note: s.note, octave: s.octave })) }
+                          : tuning
+                      )));
+                    }
+                  }}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    const id = `custom-${Date.now()}`;
+                    setTunings((prev) => ([
+                      ...prev,
+                      { id, name: draftName.trim() || 'Custom', strings: draftStrings.map((s) => ({ note: s.note, octave: s.octave })) }
+                    ]));
+                    setEditingId(id);
+                  }}
+                >
+                  Save As New
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {error && <div className="tuner-error">{error}</div>}
         <div className="tuner-clarity">
           <span>Clarity</span>
@@ -3035,9 +3295,10 @@ function MainApp() {
                 title="Open tuner"
               >
                 <svg className="tuner-launch-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 3v10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  <circle cx="12" cy="17" r="4" fill="none" stroke="currentColor" strokeWidth="2" />
-                  <path d="M8 21h8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M8 3v7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M16 3v7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M8 10a4 4 0 0 0 8 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M12 10v10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
