@@ -5,6 +5,14 @@
 A macOS desktop app for guitar scores: **library management + focused reading + practice tools**.  
 License: MIT
 
+![Electron](https://img.shields.io/badge/Electron-40-47848F?logo=electron&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
+![PDF.js](https://img.shields.io/badge/PDF.js-5-CC0000?logo=adobeacrobatreader&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-13+-000000?logo=apple&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-2F855A)
+
 ## Overview
 ![Library](public/github/introPhotos/libraryEnglish.png)
 ![Tab Reader](public/github/introPhotos/tabReader.png)
@@ -75,9 +83,9 @@ If denied, use the “Open System Settings” button in-app.
 
 ## Scripts
 ```bash
-npm run dev          # 开发模式
-npm run build        # 构建渲染层 + pdfkit-cli
-npm run pack:mac     # 打包 DMG
+npm run dev         
+npm run build       
+npm run pack:mac     
 ```
 
 ## Contributing
