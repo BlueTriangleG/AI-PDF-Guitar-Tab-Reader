@@ -5,13 +5,10 @@
 A macOS desktop app for guitar scores: **library management + focused reading + practice tools**.  
 License: MIT
 
-## Screenshots
-![Library (English)](public/github/introPhotos/libraryEnglish.png)
-![Library (Chinese)](public/github/introPhotos/libraryChinese.png)
+## Overview
+![Library](public/github/introPhotos/libraryEnglish.png)
 ![Tab Reader](public/github/introPhotos/tabReader.png)
-![Tab Reader (Chinese)](public/github/introPhotos/tabReaderChinese.png)
 ![Useful Tools](public/github/introPhotos/usefulTools.png)
-![Useful Tools (Chinese)](public/github/introPhotos/usefulToolsChinese.png)
 
 ## Core Reader Features
 - **Continuous & single-page modes** with quick switching
@@ -25,13 +22,12 @@ License: MIT
 - **Library**: folders + scores in grid/list, search, sorting, favorites, recent history
 - **Metronome & tuner**: dedicated windows for practice
 - **Recording**: audio/video recording window, device & format selection, live waveform
-- **Bilingual UI**: English / 中文 (Settings)
 
 ## Tech Stack
 - Electron 40 + Vite + React
-- SQLite（本地谱库索引）
-- PDF.js（PDF 渲染）
-- PDFKit CLI（页数/缩略图渲染）
+- SQLite
+- PDF.js
+- PDFKit CLI
 
 ## Development
 Recommended: macOS + Node.js 20+
@@ -99,13 +95,10 @@ MIT
 面向吉他谱的 macOS 桌面应用：**谱库管理 + 专注阅读 + 练习工具**。  
 开源协议：MIT
 
-## 预览截图
-![Library (English)](public/github/introPhotos/libraryEnglish.png)
-![Library (Chinese)](public/github/introPhotos/libraryChinese.png)
-![Tab Reader](public/github/introPhotos/tabReader.png)
-![Tab Reader (Chinese)](public/github/introPhotos/tabReaderChinese.png)
-![Useful Tools](public/github/introPhotos/usefulTools.png)
-![Useful Tools (Chinese)](public/github/introPhotos/usefulToolsChinese.png)
+## 预览
+![乐谱库](public/github/introPhotos/libraryChinese.png)
+![阅读器](public/github/introPhotos/tabReaderChinese.png)
+![练习工具](public/github/introPhotos/usefulToolsChinese.png)
 
 ## 阅读器核心功能
 - **连续/逐页** 两种阅读模式快速切换
@@ -119,7 +112,6 @@ MIT
 - **Library 管理**：文件夹/谱子双模式（网格/列表）、搜索、排序、收藏、最近打开
 - **节拍器 & 调音器**：独立窗口、练习辅助
 - **录音/录像**：独立窗口、设备选择、格式选择、实时波形
-- **双语界面**：English / 中文（Settings）
 
 ## 技术栈
 - Electron 40 + Vite + React
