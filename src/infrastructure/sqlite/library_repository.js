@@ -49,6 +49,7 @@ function createLibraryRepository(db) {
   const selectPathsStmt = db.prepare('SELECT file_path FROM documents');
   const selectByIdStmt = db.prepare('SELECT * FROM documents WHERE id = ?');
   const updateLastOpenedStmt = db.prepare('UPDATE documents SET last_opened = ? WHERE id = ?');
+  const updateFavoriteStmt = db.prepare('UPDATE documents SET favorite = ? WHERE id = ?');
 
   const getSettingStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
   const setSettingStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
@@ -122,6 +123,10 @@ function createLibraryRepository(db) {
     return updateLastOpenedStmt.run(timestamp, id);
   }
 
+  function setFavorite(id, favorite) {
+    return updateFavoriteStmt.run(favorite ? 1 : 0, id);
+  }
+
   function getSetting(key) {
     const row = getSettingStmt.get(key);
     return row ? row.value : null;
@@ -157,6 +162,7 @@ function createLibraryRepository(db) {
     pruneMissing,
     getDocumentById,
     updateLastOpened,
+    setFavorite,
     getSetting,
     setSetting,
     listSources,

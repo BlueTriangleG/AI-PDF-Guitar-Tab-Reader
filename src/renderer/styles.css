@@ -1215,6 +1215,7 @@ button.accent {
   font: inherit;
   cursor: pointer;
   box-shadow: 0 12px 22px rgba(28, 24, 20, 0.08);
+  position: relative;
 }
 
 .library-window .item-card:hover {
@@ -1227,12 +1228,20 @@ button.accent {
   box-shadow: 0 14px 24px rgba(60, 98, 140, 0.18);
 }
 
-.library-window .item-card.doc-item:hover .doc-preview img {
-  transform: scale(1.04);
+.favorite-star {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(28, 24, 20, 0.4);
+  background: transparent;
+  cursor: pointer;
+  z-index: 2;
 }
 
-.library-window .item-card.doc-item .doc-preview img {
-  transition: transform 0.25s ease;
+.favorite-star.active {
+  color: #f3b94f;
 }
 
 .library-window .item-card.active {

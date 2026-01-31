@@ -110,6 +110,10 @@ function registerIpcHandlers({
     return library.deleteDocuments(docIds, alsoDeleteFiles);
   });
 
+  ipcMain.handle('library:setFavorite', async (_event, docId, favorite) => {
+    return library.setFavorite(docId, favorite);
+  });
+
   ipcMain.handle('library:deleteFolder', async (_event, folderPath) => {
     return library.deleteFolder(folderPath);
   });

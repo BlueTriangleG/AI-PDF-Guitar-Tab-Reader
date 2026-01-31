@@ -1305,8 +1305,14 @@ function LibraryWindow() {
   const currentDocs = useMemo(() => {
     if (!allDocuments.length) return [];
     if (selectedView === ROOT_VIEW) {
-      if (!internalRoot) return [];
-      return allDocuments.filter((doc) => normalizePath(getParentDir(doc.file_path)) === normalizePath(internalRoot));
+      const favorites = allDocuments.filter((doc) => doc.favorite);
+      const rootDocs = internalRoot
+        ? allDocuments.filter((doc) => normalizePath(getParentDir(doc.file_path)) === normalizePath(internalRoot))
+        : [];
+      const merged = new Map();
+      favorites.forEach((doc) => merged.set(doc.id, doc));
+      rootDocs.forEach((doc) => merged.set(doc.id, doc));
+      return Array.from(merged.values());
     }
     return allDocuments.filter((doc) => normalizePath(getParentDir(doc.file_path)) === normalizePath(selectedView));
   }, [allDocuments, selectedView, internalRoot]);
@@ -1379,6 +1385,11 @@ function LibraryWindow() {
     };
 
     const sorted = [...filteredDocItems].sort((a, b) => {
+      const aFav = a.doc.favorite ? 1 : 0;
+      const bFav = b.doc.favorite ? 1 : 0;
+      if (aFav !== bFav) {
+        return bFav - aFav;
+      }
       const aVal = getSortValue(a);
       const bVal = getSortValue(b);
       let cmp = 0;
@@ -1517,6 +1528,19 @@ function LibraryWindow() {
     if (!api?.library || !doc?.id) return;
     setActiveDocId(doc.id);
     await api.library.openDocument(doc.id);
+  }, [api]);
+
+  const handleToggleFavorite = useCallback(async (doc, event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!api?.library?.setFavorite || !doc?.id) return;
+    const next = !doc.favorite;
+    setAllDocuments((prev) => prev.map((item) => (
+      item.id === doc.id ? { ...item, favorite: next ? 1 : 0 } : item
+    )));
+    await api.library.setFavorite(doc.id, next);
   }, [api]);
 
   const handleBack = useCallback(() => {
@@ -2212,6 +2236,23 @@ function LibraryWindow() {
                       role="button"
                       tabIndex={0}
                     >
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className={`favorite-star ${item.doc.favorite ? 'active' : ''}`}
+                        onClick={(e) => handleToggleFavorite(item.doc, e)}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleToggleFavorite(item.doc, e);
+                          }
+                        }}
+                        aria-label={item.doc.favorite ? 'Remove favorite' : 'Mark as favorite'}
+                        title={item.doc.favorite ? 'Remove favorite' : 'Mark as favorite'}
+                      >
+                        ★
+                      </span>
                       <DocPreview
                         filePath={item.doc.file_path}
                         label={item.doc.title || 'Preview'}

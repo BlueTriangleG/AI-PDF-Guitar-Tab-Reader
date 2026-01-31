@@ -541,6 +541,13 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     libraryRepo.updateLastOpened(documentId, now);
   }
 
+  function setFavorite(documentId, favorite) {
+    if (!documentId) return false;
+    libraryRepo.setFavorite(documentId, favorite);
+    emitter.emit('changed');
+    return true;
+  }
+
   return {
     init,
     getLibraryRoot,
@@ -564,6 +571,7 @@ function createLibraryService({ libraryRepo, pdfService, fileScanner, watcher, g
     copyFolder,
     getSetting,
     setSetting,
+    setFavorite,
     saveReadingState,
     on: emitter.on.bind(emitter)
   };

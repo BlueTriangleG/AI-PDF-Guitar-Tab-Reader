@@ -36,7 +36,8 @@ function initDb() {
       file_size INTEGER,
       created_at TEXT,
       updated_at TEXT,
-      last_opened TEXT
+      last_opened TEXT,
+      favorite INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS document_tags (
@@ -108,6 +109,11 @@ function initDb() {
   const hasFileType = columns.some((col) => col.name === 'file_type');
   if (!hasFileType) {
     db.exec("ALTER TABLE documents ADD COLUMN file_type TEXT DEFAULT 'pdf'");
+  }
+  const hasFavorite = columns.some((col) => col.name === 'favorite');
+  if (!hasFavorite) {
+    db.exec('ALTER TABLE documents ADD COLUMN favorite INTEGER DEFAULT 0');
+    db.exec('UPDATE documents SET favorite = 0 WHERE favorite IS NULL');
   }
 
   return db;

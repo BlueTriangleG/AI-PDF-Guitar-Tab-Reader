@@ -24,7 +24,8 @@ contextBridge.exposeInMainWorld('api', {
     importFilesTo: (filePaths, targetFolder) => ipcRenderer.invoke('library:importFilesTo', filePaths, targetFolder),
     handleDroppedPaths: (paths, targetFolder) => ipcRenderer.invoke('library:handleDroppedPaths', paths, targetFolder),
     openDocument: (docId) => ipcRenderer.invoke('library:openDocument', docId),
-    openImageStack: (paths) => ipcRenderer.invoke('library:openImageStack', paths)
+    openImageStack: (paths) => ipcRenderer.invoke('library:openImageStack', paths),
+    setFavorite: (docId, favorite) => ipcRenderer.invoke('library:setFavorite', docId, favorite)
   },
   pdf: {
     getInfo: (filePath) => ipcRenderer.invoke('pdf:info', filePath),
