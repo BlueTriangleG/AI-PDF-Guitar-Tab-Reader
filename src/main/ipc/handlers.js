@@ -1,10 +1,54 @@
-const { BrowserWindow, ipcMain, dialog } = require('electron');
+const { BrowserWindow, ipcMain, dialog, app } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenReaderWindow, onOpenLibraryWindow, onOpenTunerWindow }) {
+function registerIpcHandlers({
+  window,
+  services,
+  onOpenMetronomeWindow,
+  onOpenReaderWindow,
+  onOpenLibraryWindow,
+  onOpenTunerWindow,
+  onOpenRecordingWindow
+}) {
   const { library, pdfService } = services;
+  const recordingBase = path.join(app.getPath('userData'), 'recordings');
+
+  const getRecordingFolder = async (kind) => {
+    const key = kind === 'video' ? 'recording.videoFolder' : 'recording.audioFolder';
+    let folder = services.library.getSetting(key);
+    if (!folder) {
+      folder = path.join(recordingBase, kind);
+      await fs.mkdir(folder, { recursive: true });
+      services.library.setSetting(key, folder);
+    }
+    return folder;
+  };
+
+  const bufferFromPayload = (payload) => {
+    if (!payload) return Buffer.alloc(0);
+    if (Buffer.isBuffer(payload)) return payload;
+    if (payload instanceof ArrayBuffer) return Buffer.from(new Uint8Array(payload));
+    if (ArrayBuffer.isView(payload)) {
+      return Buffer.from(payload.buffer, payload.byteOffset, payload.byteLength);
+    }
+    if (payload.type === 'Buffer' && Array.isArray(payload.data)) {
+      return Buffer.from(payload.data);
+    }
+    return Buffer.from(payload);
+  };
+
+  const extensionFromMime = (mimeType, kind) => {
+    if (!mimeType) return kind === 'video' ? 'webm' : 'webm';
+    if (mimeType.includes('mp4')) return 'mp4';
+    if (mimeType.includes('mp3')) return 'mp3';
+    if (mimeType.includes('ogg')) return 'ogg';
+    if (mimeType.includes('wav')) return 'wav';
+    if (mimeType.includes('mpeg')) return 'mp3';
+    if (mimeType.includes('webm')) return 'webm';
+    return kind === 'video' ? 'webm' : 'webm';
+  };
 
   ipcMain.handle('library:list', async () => library.listDocuments());
   ipcMain.handle('library:scan', async () => library.scanLibrary());
@@ -196,6 +240,32 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
     return true;
   });
 
+  ipcMain.handle('media:chooseFolder', async (event, kind) => {
+    const owner = BrowserWindow.fromWebContents(event.sender) || window;
+    const result = await dialog.showOpenDialog(owner, {
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const folder = result.filePaths[0];
+    const key = kind === 'video' ? 'recording.videoFolder' : 'recording.audioFolder';
+    await fs.mkdir(folder, { recursive: true });
+    services.library.setSetting(key, folder);
+    return folder;
+  });
+
+  ipcMain.handle('media:saveRecording', async (_event, kind, payload, mimeType) => {
+    const safeKind = kind === 'video' ? 'video' : 'audio';
+    const folder = await getRecordingFolder(safeKind);
+    await fs.mkdir(folder, { recursive: true });
+    const ext = extensionFromMime(mimeType, safeKind);
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `${safeKind}-${stamp}.${ext}`;
+    const filePath = path.join(folder, fileName);
+    const buffer = bufferFromPayload(payload);
+    await fs.writeFile(filePath, buffer);
+    return filePath;
+  });
+
   ipcMain.handle('reader:openImages', async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender) || window;
     const result = await dialog.showOpenDialog(owner, {
@@ -232,6 +302,13 @@ function registerIpcHandlers({ window, services, onOpenMetronomeWindow, onOpenRe
   ipcMain.handle('window:openTuner', async () => {
     if (onOpenTunerWindow) {
       onOpenTunerWindow();
+    }
+    return true;
+  });
+  
+  ipcMain.handle('window:openRecording', async () => {
+    if (onOpenRecordingWindow) {
+      onOpenRecordingWindow();
     }
     return true;
   });

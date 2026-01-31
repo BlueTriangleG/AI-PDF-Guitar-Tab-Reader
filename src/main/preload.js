@@ -40,12 +40,17 @@ contextBridge.exposeInMainWorld('api', {
     get: (key) => ipcRenderer.invoke('settings:get', key),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value)
   },
+  media: {
+    chooseFolder: (kind) => ipcRenderer.invoke('media:chooseFolder', kind),
+    saveRecording: (kind, payload, mimeType) => ipcRenderer.invoke('media:saveRecording', kind, payload, mimeType)
+  },
   window: {
     setTrafficLights: (visible) => ipcRenderer.invoke('window:setTrafficLights', visible),
     openMetronome: () => ipcRenderer.invoke('window:openMetronome'),
     openTuner: () => ipcRenderer.invoke('window:openTuner'),
     openLibrary: () => ipcRenderer.invoke('window:openLibrary'),
-    openLibraryAt: (folderPath) => ipcRenderer.invoke('window:openLibraryAt', folderPath)
+    openLibraryAt: (folderPath) => ipcRenderer.invoke('window:openLibraryAt', folderPath),
+    openRecording: () => ipcRenderer.invoke('window:openRecording')
   },
   fileUrlFromPath: (filePath) => ipcRenderer.invoke('file:toUrl', filePath),
   fileReadAsDataUrl: (filePath) => ipcRenderer.invoke('file:readAsDataUrl', filePath),

@@ -3,6 +3,7 @@ const { createMainWindow } = require('./windows/main_window');
 const { createLibraryWindow } = require('./windows/library_window');
 const { createMetronomeWindow } = require('./windows/metronome_window');
 const { createTunerWindow } = require('./windows/tuner_window');
+const { createRecordingWindow } = require('./windows/recording_window');
 const { registerIpcHandlers } = require('./ipc/handlers');
 const { initServices } = require('./bootstrap/init_services');
 const { setAppMenu } = require('./menus/app_menu');
@@ -10,6 +11,7 @@ const { setAppMenu } = require('./menus/app_menu');
 let libraryWindow;
 let metronomeWindow;
 let tunerWindow;
+let recordingWindow;
 const readerWindows = new Set();
 
 app.whenReady().then(async () => {
@@ -70,6 +72,19 @@ app.whenReady().then(async () => {
     return tunerWindow;
   };
 
+  const openRecordingWindow = () => {
+    if (recordingWindow && !recordingWindow.isDestroyed()) {
+      recordingWindow.focus();
+      return recordingWindow;
+    }
+    recordingWindow = createRecordingWindow();
+    recordingWindow.on('closed', () => {
+      recordingWindow = null;
+    });
+    return recordingWindow;
+  };
+
+
   libraryWindow = openLibraryWindow();
   setAppMenu({
     onOpenWindow: createAndTrackWindow,
@@ -82,7 +97,8 @@ app.whenReady().then(async () => {
     onOpenMetronomeWindow: openMetronomeWindow,
     onOpenReaderWindow: openReaderWindow,
     onOpenLibraryWindow: openLibraryWindow,
-    onOpenTunerWindow: openTunerWindow
+    onOpenTunerWindow: openTunerWindow,
+    onOpenRecordingWindow: openRecordingWindow
   });
 
   services.library.on('changed', async () => {

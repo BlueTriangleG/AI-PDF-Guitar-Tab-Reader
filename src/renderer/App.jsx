@@ -65,6 +65,61 @@ function getRelativePath(targetPath, rootPath) {
   return relative;
 }
 
+function pickRecordingMimeType(kind) {
+  if (typeof window === 'undefined') return '';
+  const Recorder = window.MediaRecorder;
+  if (!Recorder || typeof Recorder.isTypeSupported !== 'function') return '';
+  const candidates = kind === 'video'
+    ? [
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4',
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm'
+      ]
+    : [
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/webm;codecs=opus',
+        'audio/ogg;codecs=opus',
+        'audio/webm'
+      ];
+  return candidates.find((type) => Recorder.isTypeSupported(type)) || '';
+}
+
+function getSupportedRecordingMimeTypes(kind) {
+  if (typeof window === 'undefined') return [];
+  const Recorder = window.MediaRecorder;
+  if (!Recorder || typeof Recorder.isTypeSupported !== 'function') return [];
+  const candidates = kind === 'video'
+    ? [
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4',
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm'
+      ]
+    : [
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/wav',
+        'audio/ogg;codecs=opus',
+        'audio/webm;codecs=opus',
+        'audio/webm'
+      ];
+  return candidates.filter((type) => Recorder.isTypeSupported(type));
+}
+
+function labelForMimeType(mimeType) {
+  if (!mimeType) return 'Default';
+  if (mimeType.includes('mp4')) return 'MP4';
+  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) return 'MP3';
+  if (mimeType.includes('wav')) return 'WAV';
+  if (mimeType.includes('ogg')) return 'OGG';
+  if (mimeType.includes('webm')) return 'WEBM';
+  return mimeType;
+}
+
 function isUnderRoot(filePath, rootPath) {
   const root = normalizePath(rootPath);
   if (!filePath || !root) return false;
@@ -2313,6 +2368,23 @@ function MainApp() {
   const [fitScale, setFitScale] = useState(1);
   const [isCentered, setIsCentered] = useState(false);
   const [pagesPerView, setPagesPerView] = useState(1);
+  const canvasRef = useRef(null);
+  const singleRef = useRef(null);
+  const readerStageRef = useRef(null);
+  const sidebarRef = useRef(null);
+  const readerRef = useRef(null);
+  const pageBaseRef = useRef({ width: null, height: null });
+  const zoomSnapRef = useRef(null);
+  const zoomScrollRef = useRef(null);
+  const stageActivityTimer = useRef(null);
+  const panState = useRef({
+    active: false,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+    container: null
+  });
 
   useEffect(() => {
     if (!api?.settings) return undefined;
@@ -2344,24 +2416,6 @@ function MainApp() {
     api.settings.set('reader.sidebarSortKey', sidebarSortKey);
     api.settings.set('reader.sidebarSortDirection', sidebarSortDirection);
   }, [api, sidebarSortKey, sidebarSortDirection]);
-
-  const canvasRef = useRef(null);
-  const singleRef = useRef(null);
-  const readerStageRef = useRef(null);
-  const sidebarRef = useRef(null);
-  const readerRef = useRef(null);
-  const pageBaseRef = useRef({ width: null, height: null });
-  const zoomSnapRef = useRef(null);
-  const zoomScrollRef = useRef(null);
-  const stageActivityTimer = useRef(null);
-  const panState = useRef({
-    active: false,
-    startX: 0,
-    startY: 0,
-    scrollLeft: 0,
-    scrollTop: 0,
-    container: null
-  });
   const clampedPagesPerView = Math.min(Math.max(pagesPerView, 1), 3);
   const imageFiles = imageBundle?.paths || EMPTY_ARRAY;
 
@@ -2638,6 +2692,12 @@ function MainApp() {
   const handleOpenTuner = useCallback(() => {
     if (api?.window?.openTuner) {
       api.window.openTuner();
+    }
+  }, []);
+
+  const handleOpenRecording = useCallback(() => {
+    if (api?.window?.openRecording) {
+      api.window.openRecording();
     }
   }, []);
 
@@ -3301,6 +3361,17 @@ function MainApp() {
                   <path d="M12 10v10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
+              <button
+                type="button"
+                className="record-launch"
+                onClick={handleOpenRecording}
+                aria-label="Recording controls"
+                title="Recording controls"
+              >
+                <svg className="record-launch-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="5" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -3567,11 +3638,614 @@ function MainApp() {
   );
 }
 
+function RecordingWindow() {
+  const [recordTab, setRecordTab] = useState('audio');
+  const [recordingKind, setRecordingKind] = useState(null);
+  const [recordingError, setRecordingError] = useState('');
+  const [recordingSaving, setRecordingSaving] = useState(false);
+  const [audioFolder, setAudioFolder] = useState('');
+  const [videoFolder, setVideoFolder] = useState('');
+  const [audioDevices, setAudioDevices] = useState([]);
+  const [videoDevices, setVideoDevices] = useState([]);
+  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState('');
+  const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState('');
+  const [selectedAudioFormat, setSelectedAudioFormat] = useState('');
+  const [selectedVideoFormat, setSelectedVideoFormat] = useState('');
+  const [audioLevel, setAudioLevel] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const previewStreamRef = useRef(null);
+  const recordChunksRef = useRef([]);
+  const recordMimeRef = useRef('');
+  const recordingMountedRef = useRef(true);
+  const videoRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const meterRafRef = useRef(null);
+  const monitorStreamRef = useRef(null);
+
+  useEffect(() => {
+    recordingMountedRef.current = true;
+    return () => {
+      recordingMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!api?.settings) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const [savedAudio, savedVideo] = await Promise.all([
+          api.settings.get('recording.audioFolder'),
+          api.settings.get('recording.videoFolder')
+        ]);
+        if (!active) return;
+        if (savedAudio) setAudioFolder(savedAudio);
+        if (savedVideo) setVideoFolder(savedVideo);
+      } catch (error) {
+        // Ignore settings errors
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!api?.settings) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const [savedAudioFormat, savedVideoFormat] = await Promise.all([
+          api.settings.get('recording.audioFormat'),
+          api.settings.get('recording.videoFormat')
+        ]);
+        if (!active) return;
+        if (savedAudioFormat) setSelectedAudioFormat(savedAudioFormat);
+        if (savedVideoFormat) setSelectedVideoFormat(savedVideoFormat);
+      } catch (error) {
+        // ignore
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!api?.settings) return;
+    api.settings.set('recording.audioFormat', selectedAudioFormat);
+    api.settings.set('recording.videoFormat', selectedVideoFormat);
+  }, [selectedAudioFormat, selectedVideoFormat]);
+
+  const audioFolderLabel = audioFolder ? basenameForPath(audioFolder) : 'Default';
+  const videoFolderLabel = videoFolder ? basenameForPath(videoFolder) : 'Default';
+  const audioFormatOptions = useMemo(() => getSupportedRecordingMimeTypes('audio'), []);
+  const videoFormatOptions = useMemo(() => getSupportedRecordingMimeTypes('video'), []);
+  const recordingStatus = recordingSaving
+    ? 'Saving...'
+    : recordingKind
+      ? `Recording ${recordingKind === 'video' ? 'video' : 'audio'}`
+      : '';
+
+  const attachPreviewStream = useCallback((stream) => {
+    if (!videoRef.current) return;
+    videoRef.current.srcObject = stream || null;
+    if (stream) {
+      videoRef.current.play().catch(() => {});
+    }
+  }, []);
+
+  const stopAudioMeter = useCallback(() => {
+    if (meterRafRef.current) {
+      cancelAnimationFrame(meterRafRef.current);
+      meterRafRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setAudioLevel(0);
+  }, []);
+
+  const startAudioMeter = useCallback((stream) => {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!stream || !AudioContext) return;
+    stopAudioMeter();
+    const ctx = new AudioContext();
+    audioContextRef.current = ctx;
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.6;
+    analyserRef.current = analyser;
+    source.connect(analyser);
+    const buffer = new Uint8Array(analyser.fftSize);
+    const update = () => {
+      if (!analyserRef.current) return;
+      analyserRef.current.getByteTimeDomainData(buffer);
+      let sum = 0;
+      for (let i = 0; i < buffer.length; i += 1) {
+        const value = (buffer[i] - 128) / 128;
+        sum += value * value;
+      }
+      const rms = Math.sqrt(sum / buffer.length);
+      setAudioLevel(Math.min(1, rms * 3));
+      meterRafRef.current = requestAnimationFrame(update);
+    };
+    meterRafRef.current = requestAnimationFrame(update);
+  }, [stopAudioMeter]);
+
+  const stopAudioMonitor = useCallback(() => {
+    if (monitorStreamRef.current) {
+      monitorStreamRef.current.getTracks().forEach((track) => track.stop());
+      monitorStreamRef.current = null;
+    }
+  }, []);
+
+  const startAudioMonitor = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia || recordingKind) return;
+    if (monitorStreamRef.current) return;
+    setRecordingError('');
+    try {
+      const audioDeviceConstraint = selectedAudioDeviceId
+        ? { deviceId: { exact: selectedAudioDeviceId } }
+        : {};
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          ...audioDeviceConstraint
+        }
+      });
+      monitorStreamRef.current = stream;
+      startAudioMeter(stream);
+    } catch (error) {
+      setRecordingError('Microphone unavailable.');
+    }
+  }, [recordingKind, selectedAudioDeviceId, startAudioMeter]);
+
+  const stopPreviewStream = useCallback(() => {
+    if (previewStreamRef.current) {
+      previewStreamRef.current.getTracks().forEach((track) => track.stop());
+      previewStreamRef.current = null;
+    }
+    attachPreviewStream(null);
+  }, [attachPreviewStream]);
+
+  const startPreviewStream = useCallback(async () => {
+    if (previewStreamRef.current || !navigator.mediaDevices?.getUserMedia) return;
+    setRecordingError('');
+    try {
+      const constraints = {
+        video: selectedVideoDeviceId ? { deviceId: { exact: selectedVideoDeviceId } } : true
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      previewStreamRef.current = stream;
+      attachPreviewStream(stream);
+    } catch (error) {
+      setRecordingError('Camera unavailable.');
+    }
+  }, [attachPreviewStream, selectedVideoDeviceId]);
+
+  const cleanupRecording = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    stopAudioMeter();
+    mediaRecorderRef.current = null;
+    recordChunksRef.current = [];
+    recordMimeRef.current = '';
+  }, [stopAudioMeter]);
+
+  const stopRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+      return;
+    }
+    cleanupRecording();
+    setRecordingKind(null);
+  }, [cleanupRecording]);
+
+  const startRecording = useCallback(async (kind) => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setRecordingError('Recording not supported.');
+      return;
+    }
+    setRecordingError('');
+    try {
+      if (kind === 'video') {
+        stopPreviewStream();
+      }
+      stopAudioMonitor();
+      const audioConstraints = {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      };
+      const audioDeviceConstraint = selectedAudioDeviceId
+        ? { deviceId: { exact: selectedAudioDeviceId } }
+        : {};
+      const audioInput = { ...audioConstraints, ...audioDeviceConstraint };
+      const videoDeviceConstraint = selectedVideoDeviceId
+        ? { deviceId: { exact: selectedVideoDeviceId } }
+        : {};
+      const constraints = kind === 'video'
+        ? {
+            audio: audioInput,
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30 },
+              ...videoDeviceConstraint
+            }
+          }
+        : { audio: audioInput };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      mediaStreamRef.current = stream;
+      startAudioMeter(stream);
+      if (kind === 'video') {
+        attachPreviewStream(stream);
+      }
+      const preferred = kind === 'video' ? selectedVideoFormat : selectedAudioFormat;
+      const mimeType = preferred && MediaRecorder.isTypeSupported(preferred)
+        ? preferred
+        : pickRecordingMimeType(kind);
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordChunksRef.current = [];
+      recordMimeRef.current = recorder.mimeType || mimeType || '';
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onerror = () => {
+        setRecordingError('Recording failed.');
+      };
+      recorder.onstop = async () => {
+        const canSetState = recordingMountedRef.current;
+        if (canSetState) {
+          setRecordingSaving(true);
+        }
+        try {
+          const blob = new Blob(recordChunksRef.current, { type: recordMimeRef.current });
+          if (blob.size > 0 && api?.media?.saveRecording) {
+            const buffer = await blob.arrayBuffer();
+            await api.media.saveRecording(kind, buffer, blob.type || recordMimeRef.current);
+          }
+        } catch (error) {
+          if (recordingMountedRef.current) {
+            setRecordingError('Failed to save recording.');
+          }
+        }
+        recordChunksRef.current = [];
+        cleanupRecording();
+        if (recordingMountedRef.current) {
+          setRecordingKind(null);
+          setRecordingSaving(false);
+        }
+        if (recordTab === 'video') {
+          startPreviewStream();
+        }
+      };
+      recorder.start(250);
+      setRecordingKind(kind);
+    } catch (error) {
+      cleanupRecording();
+      setRecordingKind(null);
+      setRecordingError('Microphone or camera permission denied.');
+    }
+  }, [
+    attachPreviewStream,
+    cleanupRecording,
+    recordTab,
+    selectedAudioDeviceId,
+    selectedVideoDeviceId,
+    selectedAudioFormat,
+    selectedVideoFormat,
+    startPreviewStream,
+    stopPreviewStream,
+    startAudioMeter,
+    stopAudioMonitor
+  ]);
+
+  const handleToggleRecording = useCallback((kind) => {
+    if (recordingKind) {
+      stopRecording();
+      return;
+    }
+    startRecording(kind);
+  }, [recordingKind, startRecording, stopRecording]);
+
+  const handleChooseRecordingFolder = useCallback(async (kind) => {
+    if (!api?.media?.chooseFolder) return;
+    const folder = await api.media.chooseFolder(kind);
+    if (!folder) return;
+    if (kind === 'video') {
+      setVideoFolder(folder);
+    } else {
+      setAudioFolder(folder);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!navigator.mediaDevices?.enumerateDevices) return undefined;
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+      if (!active) return;
+      const audioInputs = devices.filter((d) => d.kind === 'audioinput');
+      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+      setAudioDevices(audioInputs);
+      setVideoDevices(videoInputs);
+      if (!selectedAudioDeviceId && audioInputs[0]) {
+        setSelectedAudioDeviceId(audioInputs[0].deviceId);
+      }
+      if (!selectedVideoDeviceId && videoInputs[0]) {
+        setSelectedVideoDeviceId(videoInputs[0].deviceId);
+      }
+    }).catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [selectedAudioDeviceId, selectedVideoDeviceId]);
+
+  useEffect(() => {
+    if (recordTab !== 'video' || recordingKind === 'video') {
+      stopPreviewStream();
+      return;
+    }
+    startPreviewStream();
+    return () => {
+      stopPreviewStream();
+    };
+  }, [recordTab, recordingKind, startPreviewStream, stopPreviewStream]);
+
+  useEffect(() => {
+    if (recordingKind) {
+      stopAudioMonitor();
+      return;
+    }
+    startAudioMonitor();
+    return () => {
+      stopAudioMonitor();
+    };
+  }, [recordingKind, selectedAudioDeviceId, startAudioMonitor, stopAudioMonitor]);
+
+  useEffect(() => {
+    return () => {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.stop();
+      }
+      cleanupRecording();
+      stopPreviewStream();
+      stopAudioMonitor();
+    };
+  }, [cleanupRecording, stopPreviewStream, stopAudioMonitor]);
+
+  return (
+    <div className="recording-window">
+      <div className="recording-drag" aria-hidden="true" />
+      <header className="recording-head">
+        <div>
+          <div className="recording-title">Recording</div>
+          <div className="recording-sub">Record audio or video sessions</div>
+        </div>
+        <div className="record-tabs">
+          <button
+            type="button"
+            className={recordTab === 'audio' ? 'active' : ''}
+            onClick={() => setRecordTab('audio')}
+          >
+            Record
+          </button>
+          <button
+            type="button"
+            className={recordTab === 'video' ? 'active' : ''}
+            onClick={() => setRecordTab('video')}
+          >
+            Video
+          </button>
+        </div>
+      </header>
+      <div className="recording-body">
+        {recordTab === 'audio' ? (
+          <div className="record-panel">
+            <div className="record-buttons">
+              <button
+                type="button"
+                className={`record-btn ${recordingKind === 'audio' ? 'active' : ''}`}
+                onClick={() => handleToggleRecording('audio')}
+                aria-pressed={recordingKind === 'audio'}
+                aria-label={recordingKind === 'audio' ? 'Stop audio recording' : 'Record audio'}
+                title={recordingKind === 'audio' ? 'Stop audio recording' : 'Record audio'}
+              >
+                {recordingKind === 'audio' ? (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="7" width="10" height="10" rx="2" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="3" width="6" height="10" rx="3" />
+                    <path d="M5 11v1a7 7 0 0 0 14 0v-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                    <line x1="8" y1="22" x2="16" y2="22" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            <div className={`record-meter ${recordingKind === 'audio' ? 'live' : ''}`}>
+              {Array.from({ length: 12 }).map((_, index) => {
+                const intensity = 0.2 + (index % 3) * 0.18;
+                const height = Math.min(1, 0.15 + audioLevel * 1.6 * intensity);
+                return (
+                  <span
+                    key={index}
+                    style={{ transform: `scaleY(${height})` }}
+                  />
+                );
+              })}
+            </div>
+            <div className="record-devices">
+              <label className="record-device">
+                <span>Audio</span>
+                <select
+                  value={selectedAudioDeviceId}
+                  onChange={(event) => setSelectedAudioDeviceId(event.target.value)}
+                >
+                  {audioDevices.length === 0 && <option value="">Default</option>}
+                  {audioDevices.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Microphone ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="record-device">
+                <span>Format</span>
+                <select
+                  value={selectedAudioFormat}
+                  onChange={(event) => setSelectedAudioFormat(event.target.value)}
+                >
+                  <option value="">Auto</option>
+                  {audioFormatOptions.map((format) => (
+                    <option key={format} value={format}>
+                      {labelForMimeType(format)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="record-folders">
+              <button
+                type="button"
+                className="record-folder"
+                onClick={() => handleChooseRecordingFolder('audio')}
+                title={audioFolder || 'Default audio folder'}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+                </svg>
+                <span>Audio {audioFolderLabel}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="record-panel">
+            <div className={`record-preview-panel ${recordingKind === 'video' ? 'live' : ''}`}>
+              <video ref={videoRef} muted playsInline autoPlay />
+            </div>
+            <div className="record-buttons">
+              <button
+                type="button"
+                className={`record-btn ${recordingKind === 'video' ? 'active' : ''}`}
+                onClick={() => handleToggleRecording('video')}
+                aria-pressed={recordingKind === 'video'}
+                aria-label={recordingKind === 'video' ? 'Stop video recording' : 'Record video'}
+                title={recordingKind === 'video' ? 'Stop video recording' : 'Record video'}
+              >
+                {recordingKind === 'video' ? (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="7" width="10" height="10" rx="2" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="7" width="12" height="10" rx="2" />
+                    <path d="M15 9l6-3v12l-6-3z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            <div className={`record-meter ${recordingKind === 'video' ? 'live' : ''}`}>
+              {Array.from({ length: 12 }).map((_, index) => {
+                const intensity = 0.2 + (index % 3) * 0.18;
+                const height = Math.min(1, 0.15 + audioLevel * 1.6 * intensity);
+                return (
+                  <span
+                    key={index}
+                    style={{ transform: `scaleY(${height})` }}
+                  />
+                );
+              })}
+            </div>
+            <div className="record-devices">
+              <label className="record-device">
+                <span>Video</span>
+                <select
+                  value={selectedVideoDeviceId}
+                  onChange={(event) => setSelectedVideoDeviceId(event.target.value)}
+                >
+                  {videoDevices.length === 0 && <option value="">Default</option>}
+                  {videoDevices.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Camera ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="record-device">
+                <span>Format</span>
+                <select
+                  value={selectedVideoFormat}
+                  onChange={(event) => setSelectedVideoFormat(event.target.value)}
+                >
+                  <option value="">Auto</option>
+                  {videoFormatOptions.map((format) => (
+                    <option key={format} value={format}>
+                      {labelForMimeType(format)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="record-device">
+                <span>Audio</span>
+                <select
+                  value={selectedAudioDeviceId}
+                  onChange={(event) => setSelectedAudioDeviceId(event.target.value)}
+                >
+                  {audioDevices.length === 0 && <option value="">Default</option>}
+                  {audioDevices.map((device, index) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Microphone ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="record-folders">
+              <button
+                type="button"
+                className="record-folder"
+                onClick={() => handleChooseRecordingFolder('video')}
+                title={videoFolder || 'Default video folder'}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+                </svg>
+                <span>Video {videoFolderLabel}</span>
+              </button>
+            </div>
+          </div>
+        )}
+        {recordingStatus && <div className="record-status">{recordingStatus}</div>}
+        {recordingError && <div className="record-error">{recordingError}</div>}
+      </div>
+    </div>
+  );
+}
+
 function AppRoot() {
   const view = getAppView();
   if (view === 'metronome') return <MetronomeWindow />;
   if (view === 'tuner') return <TunerWindow />;
   if (view === 'library') return <LibraryWindow />;
+  if (view === 'recording') return <RecordingWindow />;
   return <MainApp />;
 }
 
