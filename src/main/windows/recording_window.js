@@ -1,7 +1,8 @@
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
+const { getWindowTitle } = require('./window_titles');
 
-function createRecordingWindow() {
+function createRecordingWindow(language = 'en') {
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   const isMac = process.platform === 'darwin';
   const recordingWindow = new BrowserWindow({
@@ -9,7 +10,7 @@ function createRecordingWindow() {
     height: 620,
     minWidth: 420,
     minHeight: 520,
-    title: 'Recording',
+    title: getWindowTitle('recording', language),
     titleBarStyle: isMac ? 'hidden' : 'default',
     backgroundColor: '#f6f1e6',
     autoHideMenuBar: true,

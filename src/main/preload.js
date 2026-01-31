@@ -41,6 +41,15 @@ contextBridge.exposeInMainWorld('api', {
     get: (key) => ipcRenderer.invoke('settings:get', key),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value)
   },
+  app: {
+    getLanguage: () => ipcRenderer.invoke('app:getLanguage'),
+    setLanguage: (language) => ipcRenderer.invoke('app:setLanguage', language),
+    onLanguageChanged: (callback) => {
+      const handler = (_event, language) => callback(language);
+      ipcRenderer.on('app:language-changed', handler);
+      return () => ipcRenderer.removeListener('app:language-changed', handler);
+    }
+  },
   media: {
     chooseFolder: (kind) => ipcRenderer.invoke('media:chooseFolder', kind),
     saveRecording: (kind, payload, mimeType) => ipcRenderer.invoke('media:saveRecording', kind, payload, mimeType)

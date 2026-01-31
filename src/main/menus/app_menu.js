@@ -7,10 +7,42 @@ function sendToFocused(channel) {
   }
 }
 
-function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {}) {
+const MENU_I18N = {
+  en: {
+    settings: 'Settings...',
+    openNewWindow: 'Open New Window',
+    openLibrary: 'Open Library',
+    openTuner: 'Open Tuner',
+    file: 'File',
+    importPdf: 'Import PDF...',
+    openImages: 'Open Images...',
+    addFolder: 'Add Folder...',
+    edit: 'Edit',
+    view: 'View',
+    window: 'Window',
+    speech: 'Speech'
+  },
+  zh: {
+    settings: '设置...',
+    openNewWindow: '打开新窗口',
+    openLibrary: '打开乐谱库',
+    openTuner: '打开调音器',
+    file: '文件',
+    importPdf: '导入 PDF...',
+    openImages: '打开图片...',
+    addFolder: '添加文件夹...',
+    edit: '编辑',
+    view: '视图',
+    window: '窗口',
+    speech: '语音'
+  }
+};
+
+function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow, onOpenSettingsWindow, language = 'en' } = {}) {
   const isMac = process.platform === 'darwin';
+  const strings = MENU_I18N[language] || MENU_I18N.en;
   const newWindowItem = {
-    label: 'Open New Window',
+    label: strings.openNewWindow,
     accelerator: 'CmdOrCtrl+Shift+N',
     enabled: Boolean(onOpenWindow),
     click: () => {
@@ -18,17 +50,24 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {
     }
   };
   const libraryWindowItem = {
-    label: 'Open Library',
+    label: strings.openLibrary,
     enabled: Boolean(onOpenLibraryWindow),
     click: () => {
       if (onOpenLibraryWindow) onOpenLibraryWindow();
     }
   };
   const tunerWindowItem = {
-    label: 'Open Tuner',
+    label: strings.openTuner,
     enabled: Boolean(onOpenTunerWindow),
     click: () => {
       if (onOpenTunerWindow) onOpenTunerWindow();
+    }
+  };
+  const settingsItem = {
+    label: strings.settings,
+    enabled: Boolean(onOpenSettingsWindow),
+    click: () => {
+      if (onOpenSettingsWindow) onOpenSettingsWindow();
     }
   };
 
@@ -38,6 +77,8 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {
           label: app.name,
           submenu: [
             { role: 'about' },
+            { type: 'separator' },
+            settingsItem,
             { type: 'separator' },
             { role: 'services' },
             { type: 'separator' },
@@ -50,20 +91,20 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {
         }]
       : []),
     {
-      label: 'File',
+      label: strings.file,
       submenu: [
         {
-          label: 'Import PDF...',
+          label: strings.importPdf,
           accelerator: 'CmdOrCtrl+O',
           click: () => sendToFocused('menu:import-pdf')
         },
         {
-          label: 'Open Images...',
+          label: strings.openImages,
           accelerator: 'Shift+CmdOrCtrl+O',
           click: () => sendToFocused('menu:open-images')
         },
         {
-          label: 'Add Folder...',
+          label: strings.addFolder,
           accelerator: 'Shift+CmdOrCtrl+L',
           click: () => sendToFocused('menu:library-location')
         },
@@ -72,7 +113,7 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {
       ]
     },
     {
-      label: 'Edit',
+      label: strings.edit,
       submenu: [
         { role: 'undo' },
         { role: 'redo' },
@@ -87,7 +128,7 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {
               { role: 'selectAll' },
               { type: 'separator' },
               {
-                label: 'Speech',
+                label: strings.speech,
                 submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }]
               }
             ]
@@ -95,7 +136,7 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {
       ]
     },
     {
-      label: 'View',
+      label: strings.view,
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
@@ -109,7 +150,7 @@ function setAppMenu({ onOpenWindow, onOpenLibraryWindow, onOpenTunerWindow } = {
       ]
     },
     {
-      label: 'Window',
+      label: strings.window,
       submenu: [
         newWindowItem,
         libraryWindowItem,

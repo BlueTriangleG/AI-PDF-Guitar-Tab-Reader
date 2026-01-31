@@ -10,7 +10,8 @@ function registerIpcHandlers({
   onOpenReaderWindow,
   onOpenLibraryWindow,
   onOpenTunerWindow,
-  onOpenRecordingWindow
+  onOpenRecordingWindow,
+  onSetLanguage
 }) {
   const { library, pdfService } = services;
   const recordingBase = path.join(app.getPath('userData'), 'recordings');
@@ -286,6 +287,24 @@ function registerIpcHandlers({
 
   ipcMain.handle('settings:set', async (_event, key, value) => {
     return services.library.setSetting(key, value);
+  });
+
+  ipcMain.handle('app:getLanguage', async () => {
+    return services.library.getSetting('app.language') || 'en';
+  });
+
+  ipcMain.handle('app:setLanguage', async (_event, language) => {
+    const nextLanguage = language || 'en';
+    services.library.setSetting('app.language', nextLanguage);
+    if (onSetLanguage) {
+      onSetLanguage(nextLanguage);
+    }
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('app:language-changed', nextLanguage);
+      }
+    });
+    return true;
   });
 
   ipcMain.handle('window:setTrafficLights', async (event, visible) => {

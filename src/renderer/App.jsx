@@ -14,6 +14,316 @@ const STANDARD_TUNING = [
   { note: 'B', octave: 3 },
   { note: 'E', octave: 4 }
 ];
+const I18N = {
+  en: {
+    appName: 'AI PDF Guitar Tab Reader',
+    defaultLabel: 'Default',
+    autoLabel: 'Auto',
+    scoresCount: '{count} Score',
+    scoresCountPlural: '{count} Scores',
+    itemsCount: '{count} item',
+    itemsCountPlural: '{count} items',
+    pagesCountSingle: '{count} page',
+    pagesCount: '{count} pages',
+    pagesLoaded: '{count} pages loaded',
+    readerTagline: 'PDF reader with guided practice tools',
+    readerSelectScore: 'Select a score',
+    readerResume: 'Resume',
+    readerNew: 'New',
+    libraryTitle: 'Library',
+    librarySubtitle: 'All your scores, in one place.',
+    librarySearch: 'Search library',
+    libraryMyLibrary: 'My Library',
+    libraryPosition: 'Position',
+    libraryHistory: 'History',
+    libraryNoRecent: 'No recent scores yet',
+    libraryLoading: 'Loading library...',
+    libraryDropTitle: 'Drop to Add',
+    libraryDropHint: 'Drop folders to link them, or PDFs to import',
+    libraryViewGrid: 'Grid',
+    libraryViewList: 'List',
+    librarySortAdded: 'Added',
+    librarySortName: 'Name',
+    librarySortLastOpened: 'Last Opened',
+    libraryNoFolders: 'No folders here yet.',
+    libraryNoScores: 'No scores here yet.',
+    libraryOpenStack: 'Open as Stack',
+    libraryCopy: 'Copy',
+    libraryCut: 'Cut',
+    libraryPaste: 'Paste',
+    libraryDelete: 'Delete',
+    libraryNewFolder: 'New Folder',
+    libraryFolderName: 'Folder name',
+    libraryCancel: 'Cancel',
+    libraryCreate: 'Create',
+    libraryDeleteConfirm: 'Delete {count} item(s)? This cannot be undone.',
+    libraryDeleteSelection: 'Delete {label}? This cannot be undone.',
+    librarySortAsc: 'Sort ascending',
+    librarySortDesc: 'Sort descending',
+    libraryImportFiles: 'Import Files',
+    libraryLinkFolder: 'Add Folder',
+    favoriteAdd: 'Mark as favorite',
+    favoriteRemove: 'Remove favorite',
+    readerSearch: 'Search title, tags',
+    readerView: 'View',
+    readerViewContinuous: 'Continuous',
+    readerViewSingle: 'Page by Page',
+    readerPagesPerView: 'Pages / View',
+    readerZoom: 'Zoom',
+    readerAutoScroll: 'Auto Scroll',
+    readerAutoPage: 'Auto Page Turn',
+    readerZoomOut: 'Zoom out',
+    readerZoomIn: 'Zoom in',
+    readerZoomFit: 'Fit to view',
+    readerViewModeLabel: 'View mode',
+    readerPagesPerViewLabel: 'Pages per view',
+    readerZoomControlsLabel: 'Zoom controls',
+    readerFocusEnter: 'Focus Mode (Z)',
+    readerFocusExit: 'Exit Focus (Z)',
+    readerFullscreenEnter: 'Fullscreen (F)',
+    readerFullscreenExit: 'Exit Fullscreen (F)',
+    readerOpenLibrary: 'Open Library',
+    readerOpenFolder: 'Open folder in library',
+    readerPin: 'Pin sidebar',
+    readerUnpin: 'Unpin sidebar',
+    readerOpenMetronome: 'Open metronome',
+    readerOpenTuner: 'Open tuner',
+    readerOpenRecording: 'Open recording',
+    readerImagesLabel: 'Images',
+    readerImageAlt: 'Image',
+    readerRenderFailed: 'Render failed',
+    readerPrevPage: 'Previous page',
+    readerNextPage: 'Next page',
+    readerEmptyTitle: 'No Score Selected',
+    readerEmptyDesc: 'Choose a score from the library or import new files',
+    readerImport: 'Import Files',
+    readerOpenImages: 'Open Images',
+    readerLoadingLibrary: 'Loading library...',
+    readerImportHint: 'Import PDFs to start your gallery.',
+    readerFailedLoad: 'Failed to load: {error}',
+    readerPages: '{count} pages',
+    librarySortLabel: 'Sort scores',
+    commonUntitled: 'Untitled',
+    commonPreview: 'Preview',
+    commonBack: 'Back',
+    recordingTitle: 'Recording',
+    recordingSubtitle: 'Record audio or video sessions',
+    recordingTabAudio: 'Record',
+    recordingTabVideo: 'Video',
+    recordingAudioLabel: 'Audio',
+    recordingVideoLabel: 'Video',
+    recordingFormatLabel: 'Format',
+    recordingAudioFolder: 'Audio',
+    recordingVideoFolder: 'Video',
+    recordingSaving: 'Saving...',
+    recordingStatus: 'Recording {kind}',
+    recordingAudioKind: 'audio',
+    recordingVideoKind: 'video',
+    recordingNotSupported: 'Recording not supported.',
+    recordingFailed: 'Recording failed.',
+    recordingMicDenied: 'Microphone or camera permission denied.',
+    recordingMicUnavailable: 'Microphone unavailable.',
+    recordingCameraUnavailable: 'Camera unavailable.',
+    recordingRecordAudio: 'Record audio',
+    recordingStopAudio: 'Stop audio recording',
+    recordingRecordVideo: 'Record video',
+    recordingStopVideo: 'Stop video recording',
+    recordingMicrophone: 'Microphone {index}',
+    recordingCamera: 'Camera {index}',
+    settingsTitle: 'Settings',
+    settingsSubtitle: 'Personalize your experience',
+    settingsLanguage: 'Language',
+    languageEnglish: 'English',
+    languageChinese: '中文',
+    metronomeTitle: 'Metronome',
+    metronomeSubtitle: 'Feel the pulse. Keep the groove.',
+    metronomeStart: 'Start',
+    metronomeStop: 'Stop',
+    metronomeTempo: 'Tempo',
+    metronomeBpm: 'BPM',
+    metronomeBeatDisplay: 'Beat display',
+    metronomeCountIn: 'Count-in: {count} {unit}',
+    metronomeBeat: 'Beat {current} / {total}',
+    metronomeReady: 'Ready',
+    metronomeTime: 'Time',
+    metronomeSubdivision: 'Subdivision',
+    metronomeCountInLabel: 'Count-in',
+    metronomeNoCountIn: 'No Count-In',
+    metronomeBar: 'bar',
+    metronomeBars: 'bars',
+    metronomeTriplet: 'Triplet',
+    metronomeBarCount: '{count} {unit}',
+    metronomeHint: 'Space to start/stop',
+    tunerTitle: 'Tuner',
+    tunerSubtitleTune: 'Pick a tuning and tune each string',
+    tunerSubtitleManage: 'Manage your tuning sets',
+    tunerEdit: 'Edit Tunings',
+    tunerBack: 'Back to Tuner',
+    tunerStandard: 'Standard',
+    tunerTuning: 'Tuning',
+    tunerDelete: 'Delete',
+    tunerNamePlaceholder: 'Tuning name',
+    tunerSave: 'Save',
+    tunerSaveAs: 'Save As New',
+    tunerClarity: 'Clarity',
+    tunerMicNotSupported: 'Microphone not supported.',
+    tunerMicDenied: 'Microphone permission denied.'
+  },
+  zh: {
+    appName: 'AI PDF Guitar Tab Reader',
+    defaultLabel: '默认',
+    autoLabel: '自动',
+    scoresCount: '{count} 个谱子',
+    scoresCountPlural: '{count} 个谱子',
+    itemsCount: '{count} 个项目',
+    itemsCountPlural: '{count} 个项目',
+    pagesCountSingle: '{count} 页',
+    pagesCount: '{count} 页',
+    pagesLoaded: '已加载 {count} 页',
+    readerTagline: 'PDF 阅读与练习工具',
+    readerSelectScore: '选择一个谱子',
+    readerResume: '继续',
+    readerNew: '新',
+    libraryTitle: '乐谱库',
+    librarySubtitle: '所有谱子都在这里。',
+    librarySearch: '搜索乐谱库',
+    libraryMyLibrary: '我的乐谱库',
+    libraryPosition: '位置',
+    libraryHistory: '历史',
+    libraryNoRecent: '暂无最近打开的谱子',
+    libraryLoading: '正在加载乐谱库...',
+    libraryDropTitle: '拖拽添加',
+    libraryDropHint: '拖拽文件夹以链接，或拖拽 PDF 以导入',
+    libraryViewGrid: '网格',
+    libraryViewList: '列表',
+    librarySortAdded: '添加时间',
+    librarySortName: '名称',
+    librarySortLastOpened: '上次打开',
+    libraryNoFolders: '这里还没有文件夹。',
+    libraryNoScores: '这里还没有谱子。',
+    libraryOpenStack: '合并打开',
+    libraryCopy: '复制',
+    libraryCut: '剪切',
+    libraryPaste: '粘贴',
+    libraryDelete: '删除',
+    libraryNewFolder: '新建文件夹',
+    libraryFolderName: '文件夹名称',
+    libraryCancel: '取消',
+    libraryCreate: '创建',
+    libraryDeleteConfirm: '删除 {count} 个项目？此操作无法撤销。',
+    libraryDeleteSelection: '删除 {label}？此操作无法撤销。',
+    librarySortAsc: '升序',
+    librarySortDesc: '降序',
+    libraryImportFiles: '导入文件',
+    libraryLinkFolder: '添加文件夹',
+    favoriteAdd: '加入收藏',
+    favoriteRemove: '取消收藏',
+    readerSearch: '搜索标题或标签',
+    readerView: '视图',
+    readerViewContinuous: '连续滚动',
+    readerViewSingle: '逐页阅读',
+    readerPagesPerView: '每屏页数',
+    readerZoom: '缩放',
+    readerAutoScroll: '自动滚动',
+    readerAutoPage: '自动翻页',
+    readerZoomOut: '缩小',
+    readerZoomIn: '放大',
+    readerZoomFit: '适配',
+    readerViewModeLabel: '视图模式',
+    readerPagesPerViewLabel: '每屏页数',
+    readerZoomControlsLabel: '缩放控制',
+    readerFocusEnter: '进入专注 (Z)',
+    readerFocusExit: '退出专注 (Z)',
+    readerFullscreenEnter: '全屏 (F)',
+    readerFullscreenExit: '退出全屏 (F)',
+    readerOpenLibrary: '打开乐谱库',
+    readerOpenFolder: '在乐谱库中打开',
+    readerPin: '固定侧边栏',
+    readerUnpin: '取消固定侧边栏',
+    readerOpenMetronome: '打开节拍器',
+    readerOpenTuner: '打开调音器',
+    readerOpenRecording: '打开录音',
+    readerImagesLabel: '图片',
+    readerImageAlt: '图片',
+    readerRenderFailed: '渲染失败',
+    readerPrevPage: '上一页',
+    readerNextPage: '下一页',
+    readerEmptyTitle: '尚未选择谱子',
+    readerEmptyDesc: '从乐谱库选择或导入新文件',
+    readerImport: '导入文件',
+    readerOpenImages: '打开图片',
+    readerLoadingLibrary: '正在加载乐谱库...',
+    readerImportHint: '导入 PDF 开始你的谱库',
+    readerFailedLoad: '加载失败：{error}',
+    readerPages: '{count} 页',
+    librarySortLabel: '排序',
+    commonUntitled: '未命名',
+    commonPreview: '预览',
+    commonBack: '返回',
+    recordingTitle: '录制',
+    recordingSubtitle: '录制音频或视频',
+    recordingTabAudio: '录音',
+    recordingTabVideo: '录像',
+    recordingAudioLabel: '音频',
+    recordingVideoLabel: '视频',
+    recordingFormatLabel: '格式',
+    recordingAudioFolder: '音频',
+    recordingVideoFolder: '视频',
+    recordingSaving: '保存中...',
+    recordingStatus: '正在录制{kind}',
+    recordingAudioKind: '音频',
+    recordingVideoKind: '视频',
+    recordingNotSupported: '当前不支持录制。',
+    recordingFailed: '录制失败。',
+    recordingMicDenied: '麦克风或摄像头权限被拒绝。',
+    recordingMicUnavailable: '麦克风不可用。',
+    recordingCameraUnavailable: '摄像头不可用。',
+    recordingRecordAudio: '开始录音',
+    recordingStopAudio: '停止录音',
+    recordingRecordVideo: '开始录像',
+    recordingStopVideo: '停止录像',
+    recordingMicrophone: '麦克风 {index}',
+    recordingCamera: '摄像头 {index}',
+    settingsTitle: '设置',
+    settingsSubtitle: '个性化你的体验',
+    settingsLanguage: '语言',
+    languageEnglish: 'English',
+    languageChinese: '中文',
+    metronomeTitle: '节拍器',
+    metronomeSubtitle: '感受节拍，保持律动。',
+    metronomeStart: '开始',
+    metronomeStop: '停止',
+    metronomeTempo: '速度',
+    metronomeBpm: 'BPM',
+    metronomeBeatDisplay: '节拍显示',
+    metronomeCountIn: '预备：{count}{unit}',
+    metronomeBeat: '第 {current} 拍 / 共 {total} 拍',
+    metronomeReady: '准备就绪',
+    metronomeTime: '拍号',
+    metronomeSubdivision: '细分',
+    metronomeCountInLabel: '预备',
+    metronomeNoCountIn: '不预备',
+    metronomeBar: '小节',
+    metronomeBars: '小节',
+    metronomeTriplet: '三连音',
+    metronomeBarCount: '{count}{unit}',
+    metronomeHint: '空格开始/暂停',
+    tunerTitle: '调音器',
+    tunerSubtitleTune: '选择调弦并逐弦调音',
+    tunerSubtitleManage: '管理调弦组合',
+    tunerEdit: '编辑调弦',
+    tunerBack: '返回调音',
+    tunerStandard: '标准',
+    tunerTuning: '调弦',
+    tunerDelete: '删除',
+    tunerNamePlaceholder: '调弦名称',
+    tunerSave: '保存',
+    tunerSaveAs: '另存为新组合',
+    tunerClarity: '清晰度',
+    tunerMicNotSupported: '不支持麦克风。',
+    tunerMicDenied: '麦克风权限被拒绝。'
+  }
+};
 
 function noteToFrequency(note, octave) {
   const noteIndex = NOTE_NAMES.indexOf(note);
@@ -22,20 +332,80 @@ function noteToFrequency(note, octave) {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
+function useI18n() {
+  const [language, setLanguageState] = useState('en');
+
+  useEffect(() => {
+    if (!api?.app?.getLanguage) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const saved = await api.app.getLanguage();
+        if (!active) return;
+        if (saved) setLanguageState(saved);
+      } catch (error) {
+        // ignore
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!api?.app?.onLanguageChanged) return undefined;
+    const unsubscribe = api.app.onLanguageChanged((next) => {
+      setLanguageState(next || 'en');
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  const t = useCallback((key, fallback, params) => {
+    const dict = I18N[language] || I18N.en;
+    let text = dict[key] ?? I18N.en[key] ?? (typeof fallback === 'string' ? fallback : key);
+    const vars = typeof fallback === 'object' && fallback !== null ? fallback : params;
+    if (vars) {
+      Object.entries(vars).forEach(([name, value]) => {
+        text = text.replace(new RegExp(`\\{${name}\\}`, 'g'), value);
+      });
+    }
+    return text;
+  }, [language]);
+
+  const setLanguage = useCallback((next) => {
+    setLanguageState(next);
+    if (api?.app?.setLanguage) {
+      api.app.setLanguage(next);
+    }
+  }, []);
+
+  return { language, setLanguage, t };
+}
+
 function getAppView() {
   if (typeof window === 'undefined') return 'main';
   const params = new URLSearchParams(window.location.search);
   return params.get('view') || 'main';
 }
 
-function formatCount(count) {
-  if (count === 1) return '1 Score';
-  return `${count} Scores`;
+function formatCount(t, count) {
+  const total = Number(count) || 0;
+  if (total === 1) return t('scoresCount', { count: 1 });
+  return t('scoresCountPlural', { count: total });
 }
 
-function formatItemCount(count) {
-  if (count === 1) return '1 item';
-  return `${count} items`;
+function formatItemCount(t, count) {
+  const total = Number(count) || 0;
+  if (total === 1) return t('itemsCount', { count: 1 });
+  return t('itemsCountPlural', { count: total });
+}
+
+function formatPagesCount(t, count) {
+  const total = Number(count) || 0;
+  if (total === 1) return t('pagesCountSingle', { count: 1 });
+  return t('pagesCount', { count: total });
 }
 
 function basenameForPath(value) {
@@ -242,7 +612,7 @@ function useMetronome({ bpm, timeSignature, subdivision, countInBars, active, on
   }, [active, bpm, timeSignature, subdivision, countInBars, onPulse]);
 }
 
-function PageCanvas({ pdfDoc, pageIndex, zoom }) {
+function PageCanvas({ pdfDoc, pageIndex, zoom, t }) {
   const canvasRef = useRef(null);
   const [rendered, setRendered] = useState(false);
   const [error, setError] = useState(null);
@@ -283,7 +653,8 @@ function PageCanvas({ pdfDoc, pageIndex, zoom }) {
       } catch (error) {
         if (!cancelled) {
           setRendered(false);
-          setError(error?.message || 'Render failed');
+          const fallback = typeof t === 'function' ? t('readerRenderFailed') : 'Render failed';
+          setError(error?.message || fallback);
         }
       }
     })();
@@ -298,7 +669,7 @@ function PageCanvas({ pdfDoc, pageIndex, zoom }) {
         }
       }
     };
-  }, [pdfDoc, pageIndex, zoom]);
+  }, [pdfDoc, pageIndex, zoom, t]);
 
   return (
     <div className="canvas-wrap">
@@ -391,6 +762,7 @@ function DocPreview({ filePath, label, fileType }) {
 }
 
 function MetronomeWindow() {
+  const { t } = useI18n();
   const [pulse, setPulse] = useState(false);
   const [bpm, setBpm] = useState(92);
   const [timeSignature, setTimeSignature] = useState(4);
@@ -459,28 +831,28 @@ function MetronomeWindow() {
     [timeSignature]
   );
   const clampedBeatIndex = Math.min(beatState.beatIndex, timeSignature);
-  const countInLabel = beatState.countInBarsRemaining === 1 ? 'bar' : 'bars';
+  const countInLabel = beatState.countInBarsRemaining === 1 ? t('metronomeBar') : t('metronomeBars');
 
   return (
     <div className={`metronome-window ${metronomeOn ? 'running' : ''}`}>
       <div className="metronome-drag" aria-hidden="true" />
       <header className="metronome-head">
         <div className="metronome-title-block">
-          <div className="metronome-title">Metronome</div>
-          <div className="metronome-sub">Feel the pulse. Keep the groove.</div>
+          <div className="metronome-title">{t('metronomeTitle')}</div>
+          <div className="metronome-sub">{t('metronomeSubtitle')}</div>
         </div>
         <button
           id="metronome-toggle"
           className={`metronome-toggle ${metronomeOn ? 'active' : ''}`}
           onClick={() => setMetronomeOn((prev) => !prev)}
         >
-          <span className="toggle-label">{metronomeOn ? 'Stop' : 'Start'}</span>
+          <span className="toggle-label">{metronomeOn ? t('metronomeStop') : t('metronomeStart')}</span>
           <span className={`toggle-dot ${pulse ? 'active' : ''}`} aria-hidden="true" />
         </button>
       </header>
       <div className="metronome-main">
         <div className="metronome-tempo">
-          <label htmlFor="bpm">Tempo</label>
+          <label htmlFor="bpm">{t('metronomeTempo')}</label>
           <div className="bpm-row">
             <input
               id="bpm"
@@ -490,7 +862,7 @@ function MetronomeWindow() {
               value={bpm}
               onChange={(event) => setBpm(parseInt(event.target.value || '0', 10))}
             />
-            <span className="bpm-unit">BPM</span>
+            <span className="bpm-unit">{t('metronomeBpm')}</span>
           </div>
           <input
             className="bpm-slider"
@@ -506,7 +878,7 @@ function MetronomeWindow() {
           <div
             className={`beat-ring ${beatState.isCountIn ? 'count-in' : ''}`}
             role="group"
-            aria-label="Beat display"
+            aria-label={t('metronomeBeatDisplay')}
           >
             {beatDots.map((beat) => (
               <span
@@ -520,15 +892,15 @@ function MetronomeWindow() {
           <div className="beat-readout" aria-live="polite">
             {metronomeOn
               ? beatState.isCountIn
-                ? `Count-in: ${beatState.countInBarsRemaining} ${countInLabel}`
-                : `Beat ${clampedBeatIndex} / ${timeSignature}`
-              : 'Ready'}
+                ? t('metronomeCountIn', { count: beatState.countInBarsRemaining, unit: countInLabel })
+                : t('metronomeBeat', { current: clampedBeatIndex, total: timeSignature })
+              : t('metronomeReady')}
           </div>
         </div>
       </div>
       <div className="metronome-settings">
         <div className="setting">
-          <label htmlFor="time-signature">Time</label>
+          <label htmlFor="time-signature">{t('metronomeTime')}</label>
           <select
             id="time-signature"
             value={timeSignature}
@@ -540,7 +912,7 @@ function MetronomeWindow() {
           </select>
         </div>
         <div className="setting">
-          <label htmlFor="subdivision">Subdivision</label>
+          <label htmlFor="subdivision">{t('metronomeSubdivision')}</label>
           <select
             id="subdivision"
             value={subdivision}
@@ -548,27 +920,28 @@ function MetronomeWindow() {
           >
             <option value={1}>1/4</option>
             <option value={2}>1/8</option>
-            <option value={3}>Triplet</option>
+            <option value={3}>{t('metronomeTriplet')}</option>
             <option value={4}>1/16</option>
           </select>
         </div>
         <div className="setting">
-          <label htmlFor="count-in">Count-in</label>
+          <label htmlFor="count-in">{t('metronomeCountInLabel')}</label>
           <select
             id="count-in"
             value={countInBars}
             onChange={(event) => setCountInBars(parseInt(event.target.value, 10))}
           >
-            <option value={0}>No Count-In</option>
-            <option value={1}>1 Bar</option>
-            <option value={2}>2 Bars</option>
-            <option value={3}>3 Bars</option>
-            <option value={4}>4 Bars</option>
+            <option value={0}>{t('metronomeNoCountIn')}</option>
+            {[1, 2, 3, 4].map((count) => (
+              <option key={count} value={count}>
+                {t('metronomeBarCount', { count, unit: count === 1 ? t('metronomeBar') : t('metronomeBars') })}
+              </option>
+            ))}
           </select>
         </div>
       </div>
       <div className="metronome-footer">
-        <span className="metronome-hint">Space to start/stop</span>
+        <span className="metronome-hint">{t('metronomeHint')}</span>
       </div>
     </div>
   );
@@ -636,18 +1009,19 @@ function detectPitch(buffer, sampleRate, minFreq, maxFreq) {
 }
 
 function TunerWindow() {
+  const { t } = useI18n();
   const [listening, setListening] = useState(true);
   const [frequency, setFrequency] = useState(null);
   const [clarity, setClarity] = useState(0);
   const [error, setError] = useState('');
   const [selectedStringIndex, setSelectedStringIndex] = useState(0);
   const [tunings, setTunings] = useState(() => ([
-    { id: 'standard', name: 'Standard', strings: STANDARD_TUNING }
+    { id: 'standard', name: t('tunerStandard'), strings: STANDARD_TUNING }
   ]));
   const [activeTuningId, setActiveTuningId] = useState('standard');
   const [tunerView, setTunerView] = useState('tune');
   const [editingId, setEditingId] = useState('standard');
-  const [draftName, setDraftName] = useState('Standard');
+  const [draftName, setDraftName] = useState(t('tunerStandard'));
   const [draftStrings, setDraftStrings] = useState(STANDARD_TUNING);
   const [meterOffset, setMeterOffset] = useState(0);
   const [completedStrings, setCompletedStrings] = useState(() => new Set());
@@ -693,9 +1067,15 @@ function TunerWindow() {
     api.settings.set('tuner.active', activeTuningId);
   }, [tunings, activeTuningId]);
 
+  const localizedTunings = useMemo(() => {
+    return tunings.map((tuning) => (
+      tuning.id === 'standard' ? { ...tuning, name: t('tunerStandard') } : tuning
+    ));
+  }, [tunings, t]);
+
   const activeTuning = useMemo(() => {
-    return tunings.find((t) => t.id === activeTuningId) || tunings[0];
-  }, [tunings, activeTuningId]);
+    return localizedTunings.find((tuning) => tuning.id === activeTuningId) || localizedTunings[0];
+  }, [localizedTunings, activeTuningId]);
 
   useEffect(() => {
     setSelectedStringIndex(0);
@@ -703,13 +1083,13 @@ function TunerWindow() {
   }, [activeTuningId]);
 
   const editingTuning = useMemo(() => {
-    return tunings.find((t) => t.id === editingId) || tunings[0];
-  }, [tunings, editingId]);
+    return localizedTunings.find((tuning) => tuning.id === editingId) || localizedTunings[0];
+  }, [localizedTunings, editingId]);
 
   useEffect(() => {
-    setDraftName(editingTuning?.name || 'Tuning');
+    setDraftName(editingTuning?.name || t('tunerTuning'));
     setDraftStrings(editingTuning?.strings || STANDARD_TUNING);
-  }, [editingTuning]);
+  }, [editingTuning, t]);
 
   const currentTarget = useMemo(() => {
     const strings = activeTuning?.strings || STANDARD_TUNING;
@@ -781,7 +1161,7 @@ function TunerWindow() {
         setError('');
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext || !navigator.mediaDevices?.getUserMedia) {
-          setError('Microphone not supported.');
+          setError(t('tunerMicNotSupported'));
           setListening(false);
           return;
         }
@@ -829,7 +1209,7 @@ function TunerWindow() {
 
         rafRef.current = requestAnimationFrame(update);
       } catch (err) {
-        setError('Microphone permission denied.');
+        setError(t('tunerMicDenied'));
         setListening(false);
       }
     };
@@ -879,9 +1259,9 @@ function TunerWindow() {
       <div className="tuner-drag" aria-hidden="true" />
       <header className="tuner-head">
         <div className="tuner-title-block">
-          <div className="tuner-title">Tuner</div>
+          <div className="tuner-title">{t('tunerTitle')}</div>
           <div className="tuner-sub">
-            {tunerView === 'tune' ? 'Pick a tuning and tune each string' : 'Manage your tuning sets'}
+            {tunerView === 'tune' ? t('tunerSubtitleTune') : t('tunerSubtitleManage')}
           </div>
         </div>
         <button
@@ -895,7 +1275,7 @@ function TunerWindow() {
             });
           }}
         >
-          {tunerView === 'tune' ? 'Edit Tunings' : 'Back to Tuner'}
+          {tunerView === 'tune' ? t('tunerEdit') : t('tunerBack')}
         </button>
       </header>
       <div className="tuner-main">
@@ -907,10 +1287,10 @@ function TunerWindow() {
                 onChange={(event) => setActiveTuningId(event.target.value)}
                 className="tuner-select"
               >
-                {tunings.map((tuning) => (
-                  <option key={tuning.id} value={tuning.id}>{tuning.name}</option>
-                ))}
-              </select>
+              {localizedTunings.map((tuning) => (
+                <option key={tuning.id} value={tuning.id}>{tuning.name}</option>
+              ))}
+            </select>
             </div>
             <div className="tuner-meter" ref={meterRef}>
               <div className="tuner-meter-track" />
@@ -936,7 +1316,7 @@ function TunerWindow() {
         ) : (
           <div className="tuner-manage">
             <div className="tuner-manage-list">
-              {tunings.map((tuning) => (
+              {localizedTunings.map((tuning) => (
                 <div key={tuning.id} className={`tuning-card ${tuning.id === editingId ? 'active' : ''}`}>
                   <div
                     className="tuning-card-main"
@@ -961,7 +1341,7 @@ function TunerWindow() {
                           if (editingId === tuning.id) setEditingId('standard');
                         }}
                       >
-                        Delete
+                        {t('tunerDelete')}
                       </button>
                     )}
                   </div>
@@ -974,7 +1354,7 @@ function TunerWindow() {
                 className="tuner-name"
                 value={draftName}
                 onChange={(event) => setDraftName(event.target.value)}
-                placeholder="Tuning name"
+                placeholder={t('tunerNamePlaceholder')}
               />
               <div className="tuner-edit">
                 {draftSpecs.map((string, index) => (
@@ -1009,7 +1389,7 @@ function TunerWindow() {
                 <button
                   type="button"
                   onClick={() => {
-                    const name = draftName.trim() || 'Custom';
+                    const name = draftName.trim() || t('tunerTuning');
                     if (editingId === 'standard') {
                       const id = `custom-${Date.now()}`;
                       setTunings((prev) => ([
@@ -1026,7 +1406,7 @@ function TunerWindow() {
                     }
                   }}
                 >
-                  Save
+                  {t('tunerSave')}
                 </button>
                 <button
                   type="button"
@@ -1035,12 +1415,12 @@ function TunerWindow() {
                     const id = `custom-${Date.now()}`;
                     setTunings((prev) => ([
                       ...prev,
-                      { id, name: draftName.trim() || 'Custom', strings: draftStrings.map((s) => ({ note: s.note, octave: s.octave })) }
+                      { id, name: draftName.trim() || t('tunerTuning'), strings: draftStrings.map((s) => ({ note: s.note, octave: s.octave })) }
                     ]));
                     setEditingId(id);
                   }}
                 >
-                  Save As New
+                  {t('tunerSaveAs')}
                 </button>
               </div>
             </div>
@@ -1048,7 +1428,7 @@ function TunerWindow() {
         )}
         {error && <div className="tuner-error">{error}</div>}
         <div className="tuner-clarity">
-          <span>Clarity</span>
+          <span>{t('tunerClarity')}</span>
           <div className="clarity-bar">
             <div className="clarity-fill" style={{ width: `${Math.min(1, clarity) * 100}%` }} />
           </div>
@@ -1061,6 +1441,7 @@ function TunerWindow() {
 function LibraryWindow() {
   const ROOT_VIEW = '__root__';
   const arrowDownIcon = `${import.meta.env.BASE_URL}icons/Arrow%20Down%20Icon.svg`;
+  const { t } = useI18n();
   const [sources, setSources] = useState([]);
   const [rootFolders, setRootFolders] = useState([]);
   const [subfolders, setSubfolders] = useState([]);
@@ -1347,10 +1728,10 @@ function LibraryWindow() {
     const baseDocs = isSearchActive ? allDocuments : currentDocs;
     return baseDocs.map((doc) => ({
       doc,
-      label: doc.title || 'Untitled'
+      label: doc.title || t('commonUntitled')
     }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [currentDocs, allDocuments, isSearchActive]);
+  }, [currentDocs, allDocuments, isSearchActive, t]);
 
   const filteredFolderItems = useMemo(() => {
     if (!searchTerm) return folderItems;
@@ -1418,19 +1799,19 @@ function LibraryWindow() {
   const totalItemCount = filteredFolderItems.length + filteredDocItems.length;
 
   const positionText = useMemo(() => {
-    if (selectedView === ROOT_VIEW) return 'My Library';
+    if (selectedView === ROOT_VIEW) return t('libraryMyLibrary');
     if (internalRoot && currentRoot && isUnderRoot(currentRoot, internalRoot)) {
       const relative = getRelativePath(selectedView, internalRoot);
-      if (!relative) return 'My Library';
-      return ['My Library', ...relative.split(/[\\/]/)].filter(Boolean).join(' / ');
+      if (!relative) return t('libraryMyLibrary');
+      return [t('libraryMyLibrary'), ...relative.split(/[\\/]/)].filter(Boolean).join(' / ');
     }
     if (currentRoot) {
       const relative = getRelativePath(selectedView, currentRoot);
       const parts = relative ? relative.split(/[\\/]/) : [];
-      return ['My Library', basenameForPath(currentRoot), ...parts].filter(Boolean).join(' / ');
+      return [t('libraryMyLibrary'), basenameForPath(currentRoot), ...parts].filter(Boolean).join(' / ');
     }
-    return 'My Library';
-  }, [selectedView, currentRoot, internalRoot]);
+    return t('libraryMyLibrary');
+  }, [selectedView, currentRoot, internalRoot, t]);
 
   const canGoBack = selectedView !== ROOT_VIEW;
 
@@ -1703,11 +2084,9 @@ function LibraryWindow() {
 
     if (docCount === 0 && folderCount === 0) return;
 
-    const parts = [];
-    if (docCount > 0) parts.push(`${docCount} score${docCount > 1 ? 's' : ''}`);
-    if (folderCount > 0) parts.push(`${folderCount} folder${folderCount > 1 ? 's' : ''}`);
-
-    const confirmed = window.confirm(`Delete ${parts.join(' and ')}? This cannot be undone.`);
+    const total = docCount + folderCount;
+    const label = formatItemCount(t, total);
+    const confirmed = window.confirm(t('libraryDeleteSelection', { label }));
     if (!confirmed) return;
 
     // Delete documents
@@ -1723,7 +2102,7 @@ function LibraryWindow() {
     clearSelection();
     await refreshSources();
     await refreshSubfolders(selectedView);
-  }, [api, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView]);
+  }, [api, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView, t]);
 
   const handleCreateNewFolder = useCallback(async () => {
     if (!api?.library) return;
@@ -1929,13 +2308,18 @@ function LibraryWindow() {
     } else if (action === 'cut') {
       setClipboard({ docs: targetDocs, folders: targetFolders, mode: 'cut' });
       clearSelection();
+    } else if (action === 'importFiles') {
+      await handleImportFiles();
+    } else if (action === 'linkFolder') {
+      await handleAddFolder();
     } else if (action === 'openImageStack') {
       await handleOpenImageStack(targetDocs, selectedDocOrder);
     } else if (action === 'paste') {
       await handlePaste();
     } else if (action === 'delete') {
       const count = targetDocs.length + targetFolders.length;
-      const confirmed = window.confirm(`Delete ${count} item${count > 1 ? 's' : ''}? This cannot be undone.`);
+      const label = formatItemCount(t, count);
+      const confirmed = window.confirm(t('libraryDeleteSelection', { label }));
       if (confirmed) {
         for (const folderPath of targetFolders) {
           await api.library.deleteFolder(folderPath);
@@ -1950,7 +2334,7 @@ function LibraryWindow() {
     } else if (action === 'newFolder') {
       openNewFolderPopup();
     }
-  }, [api, contextMenu, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView, closeContextMenu, openNewFolderPopup, handlePaste, handleOpenImageStack]);
+  }, [api, contextMenu, selectedDocs, selectedFolders, clearSelection, refreshSources, refreshSubfolders, selectedView, closeContextMenu, openNewFolderPopup, handlePaste, handleOpenImageStack, handleImportFiles, handleAddFolder, t]);
 
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
@@ -2016,9 +2400,9 @@ function LibraryWindow() {
   }, [contextMenu, closeContextMenu]);
 
   const activeLabel = useMemo(() => {
-    if (selectedView === ROOT_VIEW) return 'My Library';
+    if (selectedView === ROOT_VIEW) return t('libraryMyLibrary');
     return basenameForPath(selectedView);
-  }, [selectedView]);
+  }, [selectedView, t]);
 
   return (
     <div
@@ -2043,21 +2427,21 @@ function LibraryWindow() {
                 />
               </svg>
             </div>
-            <div className="drop-title">Drop to Add</div>
-            <div className="drop-hint">Drop folders to link them, or PDFs to import</div>
+            <div className="drop-title">{t('libraryDropTitle')}</div>
+            <div className="drop-hint">{t('libraryDropHint')}</div>
           </div>
         </div>
       )}
       <header className="library-header">
         <div className="library-title-block">
-          <div className="library-title">Library</div>
-          <div className="library-subtitle">All your scores, in one place.</div>
+          <div className="library-title">{t('libraryTitle')}</div>
+          <div className="library-subtitle">{t('librarySubtitle')}</div>
         </div>
         <div className="library-actions">
           <input
             type="search"
             className="library-search"
-            placeholder="Search library"
+            placeholder={t('librarySearch')}
             value={sidebarSearch}
             onChange={(event) => setSidebarSearch(event.target.value)}
           />
@@ -2066,11 +2450,11 @@ function LibraryWindow() {
       <div className="library-body">
         <aside className="library-sidebar">
           <div className="library-section">
-            <div className="section-title">Position</div>
+            <div className="section-title">{t('libraryPosition')}</div>
             <div className="position-display">{positionText}</div>
           </div>
           <div className="library-section">
-            <div className="section-title">History</div>
+            <div className="section-title">{t('libraryHistory')}</div>
             <div className="recent-list">
               {recentDocs.map((doc) => (
                 <button
@@ -2079,12 +2463,12 @@ function LibraryWindow() {
                   className={`recent-item ${activeDocId === doc.id ? 'active' : ''}`}
                   onClick={() => handleOpenDoc(doc)}
                 >
-                  <span className="recent-title">{doc.title || 'Untitled'}</span>
+                  <span className="recent-title">{doc.title || t('commonUntitled')}</span>
                   <span className="recent-meta">{basenameForPath(doc.file_path)}</span>
                 </button>
               ))}
               {!recentDocs.length && (
-                <div className="source-empty">No recent scores yet</div>
+                <div className="source-empty">{t('libraryNoRecent')}</div>
               )}
             </div>
           </div>
@@ -2115,7 +2499,7 @@ function LibraryWindow() {
             <div className="content-title-row">
               <div className="content-title-main">
                 {canGoBack && (
-                  <button type="button" className="back-button" onClick={handleBack} aria-label="Back">
+                  <button type="button" className="back-button" onClick={handleBack} aria-label={t('commonBack')}>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -2124,38 +2508,38 @@ function LibraryWindow() {
                 <div className="content-title">{activeLabel}</div>
               </div>
               <div className="content-tools">
-                <div className="view-toggle" role="group" aria-label="View mode">
+                <div className="view-toggle" role="group" aria-label={t('readerViewModeLabel')}>
                   <button
                     type="button"
                     className={viewMode === 'grid' ? 'active' : ''}
                     onClick={() => setViewMode('grid')}
                   >
-                    Grid
+                    {t('libraryViewGrid')}
                   </button>
                   <button
                     type="button"
                     className={viewMode === 'list' ? 'active' : ''}
                     onClick={() => setViewMode('list')}
                   >
-                    List
+                    {t('libraryViewList')}
                   </button>
                 </div>
                 <div className="sort-controls">
                   <select
-                    aria-label="Sort scores"
+                    aria-label={t('librarySortLabel')}
                     value={sortKey}
                     onChange={(event) => setSortKey(event.target.value)}
                   >
-                    <option value="added">Added</option>
-                    <option value="name">Name</option>
-                    <option value="last_opened">Last Opened</option>
+                    <option value="added">{t('librarySortAdded')}</option>
+                    <option value="name">{t('librarySortName')}</option>
+                    <option value="last_opened">{t('librarySortLastOpened')}</option>
                   </select>
                   <button
                     type="button"
                     className={`sort-toggle ${sortDirection === 'asc' ? 'asc' : 'desc'}`}
                     onClick={() => setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                    aria-label={sortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
-                    title={sortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
+                    aria-label={sortDirection === 'asc' ? t('librarySortDesc') : t('librarySortAsc')}
+                    title={sortDirection === 'asc' ? t('librarySortDesc') : t('librarySortAsc')}
                   >
                     <img src={arrowDownIcon} alt="" aria-hidden="true" />
                   </button>
@@ -2163,7 +2547,7 @@ function LibraryWindow() {
               </div>
             </div>
           </div>
-          {loading && <div className="empty">Loading library...</div>}
+          {loading && <div className="empty">{t('libraryLoading')}</div>}
           {!loading && (
             <>
               <div className="content-section folders">
@@ -2208,7 +2592,7 @@ function LibraryWindow() {
                   ))}
                 </div>
                 {!filteredFolderItems.length && (
-                  <div className="empty">No folders here yet.</div>
+                  <div className="empty">{t('libraryNoFolders')}</div>
                 )}
               </div>
               <div className="content-section scores">
@@ -2230,7 +2614,7 @@ function LibraryWindow() {
                           y: e.clientY,
                           type: 'doc',
                           target: item.doc.id,
-                          label: item.doc.title || 'Untitled'
+                          label: item.doc.title || t('commonUntitled')
                         });
                       }}
                       role="button"
@@ -2248,25 +2632,25 @@ function LibraryWindow() {
                             handleToggleFavorite(item.doc, e);
                           }
                         }}
-                        aria-label={item.doc.favorite ? 'Remove favorite' : 'Mark as favorite'}
-                        title={item.doc.favorite ? 'Remove favorite' : 'Mark as favorite'}
+                        aria-label={item.doc.favorite ? t('favoriteRemove') : t('favoriteAdd')}
+                        title={item.doc.favorite ? t('favoriteRemove') : t('favoriteAdd')}
                       >
                         ★
                       </span>
                       <DocPreview
                         filePath={item.doc.file_path}
-                        label={item.doc.title || 'Preview'}
+                        label={item.doc.title || t('commonPreview')}
                         fileType={item.doc.file_type}
                       />
-                      <div className="item-title">{item.doc.title || 'Untitled'}</div>
+                      <div className="item-title">{item.doc.title || t('commonUntitled')}</div>
                       <div className="item-meta">
-                        <span>{item.doc.page_count || '--'} pages</span>
+                        <span>{item.doc.page_count ? formatPagesCount(t, item.doc.page_count) : '--'}</span>
                       </div>
                     </div>
                   ))}
                 </div>
                 {!filteredDocItems.length && (
-                  <div className="empty">No scores here yet.</div>
+                  <div className="empty">{t('libraryNoScores')}</div>
                 )}
               </div>
             </>
@@ -2284,9 +2668,23 @@ function LibraryWindow() {
               <button
                 type="button"
                 className="context-menu-item"
+                onClick={() => handleContextMenuAction('importFiles')}
+              >
+                {t('libraryImportFiles')}
+              </button>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('linkFolder')}
+              >
+                {t('libraryLinkFolder')}
+              </button>
+              <button
+                type="button"
+                className="context-menu-item"
                 onClick={() => handleContextMenuAction('newFolder')}
               >
-                New Folder
+                {t('libraryNewFolder')}
               </button>
               {hasClipboard && (
                 <button
@@ -2294,7 +2692,7 @@ function LibraryWindow() {
                   className="context-menu-item"
                   onClick={() => handleContextMenuAction('paste')}
                 >
-                  <span>Paste</span>
+                  <span>{t('libraryPaste')}</span>
                   <span className="shortcut">⌘V</span>
                 </button>
               )}
@@ -2302,6 +2700,21 @@ function LibraryWindow() {
           )}
           {(contextMenu.type === 'folder' || contextMenu.type === 'doc') && (
             <>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('importFiles')}
+              >
+                {t('libraryImportFiles')}
+              </button>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => handleContextMenuAction('linkFolder')}
+              >
+                {t('libraryLinkFolder')}
+              </button>
+              <div className="context-menu-divider" />
               {contextMenu.type === 'doc' && canOpenImageStack && selectedDocs.has(contextMenu.target) && (
                 <>
                   <button
@@ -2309,7 +2722,7 @@ function LibraryWindow() {
                     className="context-menu-item"
                     onClick={() => handleContextMenuAction('openImageStack')}
                   >
-                    Open as Stack
+                    {t('libraryOpenStack')}
                   </button>
                   <div className="context-menu-divider" />
                 </>
@@ -2319,7 +2732,7 @@ function LibraryWindow() {
                 className="context-menu-item"
                 onClick={() => handleContextMenuAction('copy')}
               >
-                <span>Copy</span>
+                <span>{t('libraryCopy')}</span>
                 <span className="shortcut">⌘C</span>
               </button>
               <button
@@ -2327,7 +2740,7 @@ function LibraryWindow() {
                 className="context-menu-item"
                 onClick={() => handleContextMenuAction('cut')}
               >
-                <span>Cut</span>
+                <span>{t('libraryCut')}</span>
                 <span className="shortcut">⌘X</span>
               </button>
               {hasClipboard && (
@@ -2336,7 +2749,7 @@ function LibraryWindow() {
                   className="context-menu-item"
                   onClick={() => handleContextMenuAction('paste')}
                 >
-                  <span>Paste</span>
+                  <span>{t('libraryPaste')}</span>
                   <span className="shortcut">⌘V</span>
                 </button>
               )}
@@ -2346,7 +2759,7 @@ function LibraryWindow() {
                 className="context-menu-item danger"
                 onClick={() => handleContextMenuAction('delete')}
               >
-                <span>Delete</span>
+                <span>{t('libraryDelete')}</span>
                 <span className="shortcut">⌫</span>
               </button>
             </>
@@ -2356,12 +2769,12 @@ function LibraryWindow() {
       {newFolderPopup && (
         <div className="popup-overlay" onClick={closeNewFolderPopup}>
           <div className="popup-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="popup-title">New Folder</div>
+            <div className="popup-title">{t('libraryNewFolder')}</div>
             <input
               ref={newFolderInputRef}
               type="text"
               className="popup-input"
-              placeholder="Folder name"
+              placeholder={t('libraryFolderName')}
               value={newFolderInput}
               onChange={(e) => setNewFolderInput(e.target.value)}
               onKeyDown={(e) => {
@@ -2372,10 +2785,10 @@ function LibraryWindow() {
             />
             <div className="popup-actions">
               <button type="button" className="ghost" onClick={closeNewFolderPopup}>
-                Cancel
+                {t('libraryCancel')}
               </button>
               <button type="button" onClick={handleCreateNewFolder}>
-                Create
+                {t('libraryCreate')}
               </button>
             </div>
           </div>
@@ -2394,6 +2807,7 @@ function MainApp() {
   const metronomeIcon = `${import.meta.env.BASE_URL}icons/Metronome%20Icon.png`;
   const bookOpenIcon = `${import.meta.env.BASE_URL}icons/Book%20Open%20Icon.svg`;
   const arrowDownIcon = `${import.meta.env.BASE_URL}icons/Arrow%20Down%20Icon.svg`;
+  const { t } = useI18n();
   const { documents, libraryRoot, loading, chooseLibraryRoot, importFiles, refresh } = useLibrary(api);
   const [search, setSearch] = useState('');
   const [selectedDoc, setSelectedDoc] = useState(null);
@@ -2998,14 +3412,14 @@ function MainApp() {
     const paths = await api.reader.openImages();
     if (!paths || !paths.length) return;
     const parent = getParentDir(paths[0]);
-    const labelBase = parent ? basenameForPath(parent) : 'Images';
+    const labelBase = parent ? basenameForPath(parent) : t('readerImagesLabel');
     setImageBundle({
       paths,
       title: `${labelBase} (${paths.length})`
     });
     setSelectedDoc(null);
     setSinglePageIndex(0);
-  }, [api]);
+  }, [api, t]);
 
   useEffect(() => {
     if (!api?.onMenuImportPdf || !api?.onMenuLibraryLocation) return undefined;
@@ -3034,7 +3448,7 @@ function MainApp() {
     const unsubscribe = api.onReaderOpenImageStack((paths) => {
       if (!paths || !paths.length) return;
       const parent = getParentDir(paths[0]);
-      const labelBase = parent ? basenameForPath(parent) : 'Images';
+      const labelBase = parent ? basenameForPath(parent) : t('readerImagesLabel');
       setImageBundle({
         paths,
         title: `${labelBase} (${paths.length})`
@@ -3045,7 +3459,7 @@ function MainApp() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [api]);
+  }, [api, t]);
 
   useEffect(() => {
     if (pageCount === 0) return;
@@ -3119,15 +3533,15 @@ function MainApp() {
 
   // Get current folder name for display
   const currentFolderName = useMemo(() => {
-    if (!currentFolderPath) return 'Library';
+    if (!currentFolderPath) return t('libraryTitle');
     return basenameForPath(currentFolderPath);
-  }, [currentFolderPath]);
+  }, [currentFolderPath, t]);
 
   const hasActiveDoc = Boolean(selectedDoc || imageBundle);
-  const activeTitle = imageBundle?.title || selectedDoc?.title || 'Select a score';
+  const activeTitle = imageBundle?.title || selectedDoc?.title || t('readerSelectScore');
   const activePagesText = hasActiveDoc
-    ? `${pageCount || selectedDoc?.page_count || 0} pages loaded`
-    : 'PDF reader with guided practice tools';
+    ? t('pagesLoaded', { count: pageCount || selectedDoc?.page_count || 0 })
+    : t('readerTagline');
 
   const sidebarVisible = sidebarPinned || sidebarHover;
   const maxStartIndex = Math.max(pageCount - clampedPagesPerView, 0);
@@ -3169,8 +3583,8 @@ function MainApp() {
               <span
                 className="library-title library-title-link"
                 onClick={() => handleOpenLibraryAt(currentFolderPath)}
-                aria-label="Open folder in library"
-                title="Open folder in library"
+                aria-label={t('readerOpenFolder')}
+                title={t('readerOpenFolder')}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
@@ -3186,16 +3600,16 @@ function MainApp() {
                 <button
                   className="library-toggle"
                   onClick={handleOpenLibrary}
-                  aria-label="Open Library"
-                  title="Open Library"
+                  aria-label={t('readerOpenLibrary')}
+                  title={t('readerOpenLibrary')}
                 >
                   <img src={bookOpenIcon} alt="" aria-hidden="true" />
                 </button>
                 <button
                   className={`pin-toggle ${sidebarPinned ? 'active' : ''}`}
                   onClick={toggleSidebarPinned}
-                  aria-label={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-                  title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                  aria-label={sidebarPinned ? t('readerUnpin') : t('readerPin')}
+                  title={sidebarPinned ? t('readerUnpin') : t('readerPin')}
                 >
                   <span className="pin-icon" aria-hidden="true" />
                 </button>
@@ -3204,28 +3618,28 @@ function MainApp() {
             <input
               id="search"
               type="search"
-              placeholder="Search title, tags"
+              placeholder={t('readerSearch')}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
             <div className="library-meta">
-              <span id="library-count">{formatCount(filteredDocuments.length)}</span>
+              <span id="library-count">{formatCount(t, filteredDocuments.length)}</span>
               <div className="sort-controls">
                 <select
-                  aria-label="Sort scores"
+                  aria-label={t('librarySortLabel')}
                   value={sidebarSortKey}
                   onChange={(event) => setSidebarSortKey(event.target.value)}
                 >
-                  <option value="added">Added</option>
-                  <option value="name">Name</option>
-                  <option value="last_opened">Last Opened</option>
+                  <option value="added">{t('librarySortAdded')}</option>
+                  <option value="name">{t('librarySortName')}</option>
+                  <option value="last_opened">{t('librarySortLastOpened')}</option>
                 </select>
                 <button
                   type="button"
                   className={`sort-toggle ${sidebarSortDirection === 'asc' ? 'asc' : 'desc'}`}
                   onClick={() => setSidebarSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
-                  aria-label={sidebarSortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
-                  title={sidebarSortDirection === 'asc' ? 'Sort descending' : 'Sort ascending'}
+                  aria-label={sidebarSortDirection === 'asc' ? t('librarySortDesc') : t('librarySortAsc')}
+                  title={sidebarSortDirection === 'asc' ? t('librarySortDesc') : t('librarySortAsc')}
                 >
                   <img src={arrowDownIcon} alt="" aria-hidden="true" />
                 </button>
@@ -3233,9 +3647,9 @@ function MainApp() {
             </div>
           </div>
           <div id="library-list" className="library-list">
-            {loading && <div className="empty">Loading library...</div>}
+            {loading && <div className="empty">{t('readerLoadingLibrary')}</div>}
             {!loading && filteredDocuments.length === 0 && (
-              <div className="empty">Import PDFs to start your gallery.</div>
+              <div className="empty">{t('readerImportHint')}</div>
             )}
             {filteredDocuments.map((doc) => (
               <div
@@ -3243,10 +3657,10 @@ function MainApp() {
                 className={`library-item ${selectedDoc?.id === doc.id ? 'active' : ''}`}
                 onClick={() => handleSelect(doc)}
               >
-                <div className="library-item-title">{doc.title || 'Untitled'}</div>
+                <div className="library-item-title">{doc.title || t('commonUntitled')}</div>
                 <div className="library-item-meta">
-                  <span>{doc.page_count || '--'} pages</span>
-                  <span>{doc.last_opened ? 'Resume' : 'New'}</span>
+                  <span>{doc.page_count ? formatPagesCount(t, doc.page_count) : '--'}</span>
+                  <span>{doc.last_opened ? t('readerResume') : t('readerNew')}</span>
                 </div>
               </div>
             ))}
@@ -3261,15 +3675,15 @@ function MainApp() {
             </div>
             <div className="toolbar-controls">
               <div className="control-group">
-                <label>View</label>
-                <div className="segmented" role="group" aria-label="View mode">
+                <label>{t('readerView')}</label>
+                <div className="segmented" role="group" aria-label={t('readerViewModeLabel')}>
                   <button
                     type="button"
                     className={viewMode === 'continuous' ? 'active' : ''}
                     onClick={() => setViewMode('continuous')}
                     aria-pressed={viewMode === 'continuous'}
                   >
-                    Continues
+                    {t('readerViewContinuous')}
                   </button>
                   <button
                     type="button"
@@ -3277,13 +3691,13 @@ function MainApp() {
                     onClick={() => setViewMode('single')}
                     aria-pressed={viewMode === 'single'}
                   >
-                    Page by Page
+                    {t('readerViewSingle')}
                   </button>
                 </div>
               </div>
               <div className="control-group">
-                <label>Pages / View</label>
-                <div className="segmented" role="group" aria-label="Pages per view">
+                <label>{t('readerPagesPerView')}</label>
+                <div className="segmented" role="group" aria-label={t('readerPagesPerViewLabel')}>
                   {[1, 2, 3].map((count) => (
                     <button
                       key={count}
@@ -3298,14 +3712,14 @@ function MainApp() {
                 </div>
               </div>
               <div className="control-group">
-                <label>Zoom</label>
-                <div className="zoom-pill" role="group" aria-label="Zoom controls">
+                <label>{t('readerZoom')}</label>
+                <div className="zoom-pill" role="group" aria-label={t('readerZoomControlsLabel')}>
                   <button
                     type="button"
                     className="zoom-pill-button"
                     onClick={handleZoomOut}
-                    aria-label="Zoom out"
-                    title="Zoom out"
+                    aria-label={t('readerZoomOut')}
+                    title={t('readerZoomOut')}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -3317,8 +3731,8 @@ function MainApp() {
                     type="button"
                     className="zoom-pill-button zoom-fit"
                     onClick={handleFitZoom}
-                    aria-label="Fit to view"
-                    title="Fit to view"
+                    aria-label={t('readerZoomFit')}
+                    title={t('readerZoomFit')}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M4 9V4h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -3331,8 +3745,8 @@ function MainApp() {
                     type="button"
                     className="zoom-pill-button"
                     onClick={handleZoomIn}
-                    aria-label="Zoom in"
-                    title="Zoom in"
+                    aria-label={t('readerZoomIn')}
+                    title={t('readerZoomIn')}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -3345,7 +3759,7 @@ function MainApp() {
               </div>
               {viewMode === 'continuous' && (
                 <div className="control-group">
-                  <label>Auto Scroll</label>
+                  <label>{t('readerAutoScroll')}</label>
                   <input
                     id="scroll-speed"
                     type="range"
@@ -3359,7 +3773,7 @@ function MainApp() {
               )}
               {viewMode === 'single' && (
                 <div className="control-group">
-                  <label>Auto Page Turn</label>
+                  <label>{t('readerAutoPage')}</label>
                   <div className="page-controls inline">
                     <input
                       id="page-delay"
@@ -3378,8 +3792,8 @@ function MainApp() {
                 type="button"
                 className="metronome-launch"
                 onClick={handleOpenMetronome}
-                aria-label="Open metronome"
-                title="Open metronome"
+                aria-label={t('readerOpenMetronome')}
+                title={t('readerOpenMetronome')}
               >
                 <img
                   className="metronome-launch-icon"
@@ -3392,8 +3806,8 @@ function MainApp() {
                 type="button"
                 className="tuner-launch"
                 onClick={handleOpenTuner}
-                aria-label="Open tuner"
-                title="Open tuner"
+                aria-label={t('readerOpenTuner')}
+                title={t('readerOpenTuner')}
               >
                 <svg className="tuner-launch-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M8 3v7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -3406,8 +3820,8 @@ function MainApp() {
                 type="button"
                 className="record-launch"
                 onClick={handleOpenRecording}
-                aria-label="Recording controls"
-                title="Recording controls"
+                aria-label={t('readerOpenRecording')}
+                title={t('readerOpenRecording')}
               >
                 <svg className="record-launch-icon" viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="12" r="5" />
@@ -3421,7 +3835,7 @@ function MainApp() {
               <button
                 className={`stage-btn ${focusMode ? 'active' : ''}`}
                 onClick={toggleFocusMode}
-                title={focusMode ? 'Exit Focus (Z)' : 'Focus Mode (Z)'}
+                title={focusMode ? t('readerFocusExit') : t('readerFocusEnter')}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   {focusMode ? (
@@ -3444,7 +3858,7 @@ function MainApp() {
               <button
                 className="stage-btn"
                 onClick={toggleFullscreen}
-                title={isFullscreen ? 'Exit Fullscreen (F)' : 'Fullscreen (F)'}
+                title={isFullscreen ? t('readerFullscreenExit') : t('readerFullscreenEnter')}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   {isFullscreen ? (
@@ -3479,7 +3893,7 @@ function MainApp() {
                   <div className="loading-spinner" />
                 </div>
               )}
-              {pdfError && <div className="empty">Failed to load: {pdfError}</div>}
+              {pdfError && <div className="empty">{t('readerFailedLoad', { error: pdfError })}</div>}
               {!pageLoading && !hasActiveDoc && (
                 <div className="empty-state">
                   <div className="empty-icon">
@@ -3490,15 +3904,15 @@ function MainApp() {
                       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                     </svg>
                   </div>
-                  <h3 className="empty-title">No Score Selected</h3>
-                  <p className="empty-desc">Choose a score from the library or import new files</p>
+                  <h3 className="empty-title">{t('readerEmptyTitle')}</h3>
+                  <p className="empty-desc">{t('readerEmptyDesc')}</p>
                   <button className="empty-btn" onClick={handleImport}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="17 8 12 3 7 8" />
                       <line x1="12" y1="3" x2="12" y2="15" />
                     </svg>
-                    Import Files
+                    {t('readerImport')}
                   </button>
                   <button className="empty-btn secondary" onClick={handleOpenImages}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3506,21 +3920,21 @@ function MainApp() {
                       <circle cx="9" cy="10" r="2" />
                       <path d="M21 17l-5.5-5.5L9 18l-3-3-3 3" />
                     </svg>
-                    Open Images
+                    {t('readerOpenImages')}
                   </button>
                 </div>
               )}
               <div className="page-stack" style={{ '--pages-per-view': clampedPagesPerView }}>
                 {selectedDoc && pdfDoc && Array.from({ length: pageCount }).map((_, index) => (
                   <div className="page-shell" key={`${selectedDoc.id}-${index}`}>
-                    <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} />
+                    <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} t={t} />
                   </div>
                 ))}
                 {selectedDoc && fileType === 'image' && imageUrl && (
                   <div className="page-shell">
                     <img
                       src={imageUrl}
-                      alt={selectedDoc.title || 'Image'}
+                      alt={selectedDoc.title || t('readerImageAlt')}
                       className="image-page"
                       style={{
                         width: pageBaseRef.current.width ? pageBaseRef.current.width * zoom * fitScale : 'auto',
@@ -3534,7 +3948,7 @@ function MainApp() {
                   <div className="page-shell" key={`image-${page.path}-${index}`}>
                     <img
                       src={page.url}
-                      alt={imageBundle?.title || 'Image'}
+                      alt={imageBundle?.title || t('readerImageAlt')}
                       className="image-page"
                       style={{
                         width: page.width ? page.width * zoom * fitScale : 'auto',
@@ -3555,8 +3969,8 @@ function MainApp() {
                 className="nav nav-prev"
                 onClick={() => setSinglePageIndex((prev) => Math.max(prev - clampedPagesPerView, 0))}
                 disabled={isPrevDisabled}
-                aria-label="Previous page"
-                title="Previous page"
+                aria-label={t('readerPrevPage')}
+                title={t('readerPrevPage')}
               >
                 <span className="nav-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -3576,7 +3990,7 @@ function MainApp() {
                   <div className="loading-spinner" />
                 </div>
               )}
-                {pdfError && <div className="empty">Failed to load: {pdfError}</div>}
+                {pdfError && <div className="empty">{t('readerFailedLoad', { error: pdfError })}</div>}
                 {!pageLoading && !hasActiveDoc && (
                   <div className="empty-state">
                     <div className="empty-icon">
@@ -3587,15 +4001,15 @@ function MainApp() {
                         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                       </svg>
                     </div>
-                    <h3 className="empty-title">No Score Selected</h3>
-                    <p className="empty-desc">Choose a score from the library or import new files</p>
+                    <h3 className="empty-title">{t('readerEmptyTitle')}</h3>
+                    <p className="empty-desc">{t('readerEmptyDesc')}</p>
                     <button className="empty-btn" onClick={handleImport}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                         <polyline points="17 8 12 3 7 8" />
                         <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
-                      Import Files
+                      {t('readerImport')}
                     </button>
                     <button className="empty-btn secondary" onClick={handleOpenImages}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3603,7 +4017,7 @@ function MainApp() {
                         <circle cx="9" cy="10" r="2" />
                         <path d="M21 17l-5.5-5.5L9 18l-3-3-3 3" />
                       </svg>
-                      Open Images
+                      {t('readerOpenImages')}
                     </button>
                   </div>
                 )}
@@ -3611,7 +4025,7 @@ function MainApp() {
                   <div className="page-stack single-stack" style={{ '--pages-per-view': clampedPagesPerView }}>
                     {singlePageIndices.map((index) => (
                       <div className="page-shell" key={`${selectedDoc.id}-${index}`}>
-                        <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} />
+                        <PageCanvas pdfDoc={pdfDoc} pageIndex={index} zoom={zoom * fitScale} t={t} />
                       </div>
                     ))}
                   </div>
@@ -3621,7 +4035,7 @@ function MainApp() {
                     <div className="page-shell">
                       <img
                         src={imageUrl}
-                        alt={selectedDoc.title || 'Image'}
+                        alt={selectedDoc.title || t('readerImageAlt')}
                         className="image-page"
                         style={{
                           width: pageBaseRef.current.width ? pageBaseRef.current.width * zoom * fitScale : 'auto',
@@ -3641,7 +4055,7 @@ function MainApp() {
                         <div className="page-shell" key={`image-${page.path}-${index}`}>
                           <img
                             src={page.url}
-                            alt={imageBundle?.title || 'Image'}
+                            alt={imageBundle?.title || t('readerImageAlt')}
                             className="image-page"
                             style={{
                               width: page.width ? page.width * zoom * fitScale : 'auto',
@@ -3661,8 +4075,8 @@ function MainApp() {
                   setSinglePageIndex((prev) => Math.min(prev + clampedPagesPerView, maxStartIndex))
                 }
                 disabled={isNextDisabled}
-                aria-label="Next page"
-                title="Next page"
+                aria-label={t('readerNextPage')}
+                title={t('readerNextPage')}
               >
                 <span className="nav-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -3680,6 +4094,7 @@ function MainApp() {
 }
 
 function RecordingWindow() {
+  const { t } = useI18n();
   const [recordTab, setRecordTab] = useState('audio');
   const [recordingKind, setRecordingKind] = useState(null);
   const [recordingError, setRecordingError] = useState('');
@@ -3760,14 +4175,14 @@ function RecordingWindow() {
     api.settings.set('recording.videoFormat', selectedVideoFormat);
   }, [selectedAudioFormat, selectedVideoFormat]);
 
-  const audioFolderLabel = audioFolder ? basenameForPath(audioFolder) : 'Default';
-  const videoFolderLabel = videoFolder ? basenameForPath(videoFolder) : 'Default';
+  const audioFolderLabel = audioFolder ? basenameForPath(audioFolder) : t('defaultLabel');
+  const videoFolderLabel = videoFolder ? basenameForPath(videoFolder) : t('defaultLabel');
   const audioFormatOptions = useMemo(() => getSupportedRecordingMimeTypes('audio'), []);
   const videoFormatOptions = useMemo(() => getSupportedRecordingMimeTypes('video'), []);
   const recordingStatus = recordingSaving
-    ? 'Saving...'
+    ? t('recordingSaving')
     : recordingKind
-      ? `Recording ${recordingKind === 'video' ? 'video' : 'audio'}`
+      ? t('recordingStatus', { kind: recordingKind === 'video' ? t('recordingVideoKind') : t('recordingAudioKind') })
       : '';
 
   const attachPreviewStream = useCallback((stream) => {
@@ -3845,9 +4260,9 @@ function RecordingWindow() {
       monitorStreamRef.current = stream;
       startAudioMeter(stream);
     } catch (error) {
-      setRecordingError('Microphone unavailable.');
+      setRecordingError(t('recordingMicUnavailable'));
     }
-  }, [recordingKind, selectedAudioDeviceId, startAudioMeter]);
+  }, [recordingKind, selectedAudioDeviceId, startAudioMeter, t]);
 
   const stopPreviewStream = useCallback(() => {
     if (previewStreamRef.current) {
@@ -3868,9 +4283,9 @@ function RecordingWindow() {
       previewStreamRef.current = stream;
       attachPreviewStream(stream);
     } catch (error) {
-      setRecordingError('Camera unavailable.');
+      setRecordingError(t('recordingCameraUnavailable'));
     }
-  }, [attachPreviewStream, selectedVideoDeviceId]);
+  }, [attachPreviewStream, selectedVideoDeviceId, t]);
 
   const cleanupRecording = useCallback(() => {
     if (mediaStreamRef.current) {
@@ -3895,7 +4310,7 @@ function RecordingWindow() {
 
   const startRecording = useCallback(async (kind) => {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setRecordingError('Recording not supported.');
+      setRecordingError(t('recordingNotSupported'));
       return;
     }
     setRecordingError('');
@@ -3947,7 +4362,7 @@ function RecordingWindow() {
         }
       };
       recorder.onerror = () => {
-        setRecordingError('Recording failed.');
+        setRecordingError(t('recordingFailed'));
       };
       recorder.onstop = async () => {
         const canSetState = recordingMountedRef.current;
@@ -3962,7 +4377,7 @@ function RecordingWindow() {
           }
         } catch (error) {
           if (recordingMountedRef.current) {
-            setRecordingError('Failed to save recording.');
+            setRecordingError(t('recordingFailed'));
           }
         }
         recordChunksRef.current = [];
@@ -3980,7 +4395,7 @@ function RecordingWindow() {
     } catch (error) {
       cleanupRecording();
       setRecordingKind(null);
-      setRecordingError('Microphone or camera permission denied.');
+      setRecordingError(t('recordingMicDenied'));
     }
   }, [
     attachPreviewStream,
@@ -3993,7 +4408,8 @@ function RecordingWindow() {
     startPreviewStream,
     stopPreviewStream,
     startAudioMeter,
-    stopAudioMonitor
+    stopAudioMonitor,
+    t
   ]);
 
   const handleToggleRecording = useCallback((kind) => {
@@ -4075,8 +4491,8 @@ function RecordingWindow() {
       <div className="recording-drag" aria-hidden="true" />
       <header className="recording-head">
         <div>
-          <div className="recording-title">Recording</div>
-          <div className="recording-sub">Record audio or video sessions</div>
+          <div className="recording-title">{t('recordingTitle')}</div>
+          <div className="recording-sub">{t('recordingSubtitle')}</div>
         </div>
         <div className="record-tabs">
           <button
@@ -4084,14 +4500,14 @@ function RecordingWindow() {
             className={recordTab === 'audio' ? 'active' : ''}
             onClick={() => setRecordTab('audio')}
           >
-            Record
+            {t('recordingTabAudio')}
           </button>
           <button
             type="button"
             className={recordTab === 'video' ? 'active' : ''}
             onClick={() => setRecordTab('video')}
           >
-            Video
+            {t('recordingTabVideo')}
           </button>
         </div>
       </header>
@@ -4104,8 +4520,8 @@ function RecordingWindow() {
                 className={`record-btn ${recordingKind === 'audio' ? 'active' : ''}`}
                 onClick={() => handleToggleRecording('audio')}
                 aria-pressed={recordingKind === 'audio'}
-                aria-label={recordingKind === 'audio' ? 'Stop audio recording' : 'Record audio'}
-                title={recordingKind === 'audio' ? 'Stop audio recording' : 'Record audio'}
+                aria-label={recordingKind === 'audio' ? t('recordingStopAudio') : t('recordingRecordAudio')}
+                title={recordingKind === 'audio' ? t('recordingStopAudio') : t('recordingRecordAudio')}
               >
                 {recordingKind === 'audio' ? (
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4135,26 +4551,26 @@ function RecordingWindow() {
             </div>
             <div className="record-devices">
               <label className="record-device">
-                <span>Audio</span>
+                <span>{t('recordingAudioLabel')}</span>
                 <select
                   value={selectedAudioDeviceId}
                   onChange={(event) => setSelectedAudioDeviceId(event.target.value)}
                 >
-                  {audioDevices.length === 0 && <option value="">Default</option>}
+                  {audioDevices.length === 0 && <option value="">{t('defaultLabel')}</option>}
                   {audioDevices.map((device, index) => (
                     <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Microphone ${index + 1}`}
+                      {device.label || t('recordingMicrophone', { index: index + 1 })}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="record-device">
-                <span>Format</span>
+                <span>{t('recordingFormatLabel')}</span>
                 <select
                   value={selectedAudioFormat}
                   onChange={(event) => setSelectedAudioFormat(event.target.value)}
                 >
-                  <option value="">Auto</option>
+                  <option value="">{t('autoLabel')}</option>
                   {audioFormatOptions.map((format) => (
                     <option key={format} value={format}>
                       {labelForMimeType(format)}
@@ -4168,12 +4584,12 @@ function RecordingWindow() {
                 type="button"
                 className="record-folder"
                 onClick={() => handleChooseRecordingFolder('audio')}
-                title={audioFolder || 'Default audio folder'}
+                title={audioFolder || t('defaultLabel')}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
                 </svg>
-                <span>Audio {audioFolderLabel}</span>
+                <span>{t('recordingAudioFolder')} {audioFolderLabel}</span>
               </button>
             </div>
           </div>
@@ -4188,8 +4604,8 @@ function RecordingWindow() {
                 className={`record-btn ${recordingKind === 'video' ? 'active' : ''}`}
                 onClick={() => handleToggleRecording('video')}
                 aria-pressed={recordingKind === 'video'}
-                aria-label={recordingKind === 'video' ? 'Stop video recording' : 'Record video'}
-                title={recordingKind === 'video' ? 'Stop video recording' : 'Record video'}
+                aria-label={recordingKind === 'video' ? t('recordingStopVideo') : t('recordingRecordVideo')}
+                title={recordingKind === 'video' ? t('recordingStopVideo') : t('recordingRecordVideo')}
               >
                 {recordingKind === 'video' ? (
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4217,26 +4633,26 @@ function RecordingWindow() {
             </div>
             <div className="record-devices">
               <label className="record-device">
-                <span>Video</span>
+                <span>{t('recordingVideoLabel')}</span>
                 <select
                   value={selectedVideoDeviceId}
                   onChange={(event) => setSelectedVideoDeviceId(event.target.value)}
                 >
-                  {videoDevices.length === 0 && <option value="">Default</option>}
+                  {videoDevices.length === 0 && <option value="">{t('defaultLabel')}</option>}
                   {videoDevices.map((device, index) => (
                     <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Camera ${index + 1}`}
+                      {device.label || t('recordingCamera', { index: index + 1 })}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="record-device">
-                <span>Format</span>
+                <span>{t('recordingFormatLabel')}</span>
                 <select
                   value={selectedVideoFormat}
                   onChange={(event) => setSelectedVideoFormat(event.target.value)}
                 >
-                  <option value="">Auto</option>
+                  <option value="">{t('autoLabel')}</option>
                   {videoFormatOptions.map((format) => (
                     <option key={format} value={format}>
                       {labelForMimeType(format)}
@@ -4245,15 +4661,15 @@ function RecordingWindow() {
                 </select>
               </label>
               <label className="record-device">
-                <span>Audio</span>
+                <span>{t('recordingAudioLabel')}</span>
                 <select
                   value={selectedAudioDeviceId}
                   onChange={(event) => setSelectedAudioDeviceId(event.target.value)}
                 >
-                  {audioDevices.length === 0 && <option value="">Default</option>}
+                  {audioDevices.length === 0 && <option value="">{t('defaultLabel')}</option>}
                   {audioDevices.map((device, index) => (
                     <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Microphone ${index + 1}`}
+                      {device.label || t('recordingMicrophone', { index: index + 1 })}
                     </option>
                   ))}
                 </select>
@@ -4264,12 +4680,12 @@ function RecordingWindow() {
                 type="button"
                 className="record-folder"
                 onClick={() => handleChooseRecordingFolder('video')}
-                title={videoFolder || 'Default video folder'}
+                title={videoFolder || t('defaultLabel')}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
                 </svg>
-                <span>Video {videoFolderLabel}</span>
+                <span>{t('recordingVideoFolder')} {videoFolderLabel}</span>
               </button>
             </div>
           </div>
@@ -4281,12 +4697,49 @@ function RecordingWindow() {
   );
 }
 
+function SettingsWindow() {
+  const { language, setLanguage, t } = useI18n();
+  return (
+    <div className="settings-window">
+      <div className="settings-drag" aria-hidden="true" />
+      <header className="settings-head">
+        <div>
+          <div className="settings-title">{t('settingsTitle')}</div>
+          <div className="settings-sub">{t('settingsSubtitle')}</div>
+        </div>
+      </header>
+      <div className="settings-body">
+        <div className="settings-row">
+          <div className="settings-label">{t('settingsLanguage')}</div>
+          <div className="settings-options">
+            <button
+              type="button"
+              className={language === 'en' ? 'active' : ''}
+              onClick={() => setLanguage('en')}
+            >
+              {t('languageEnglish')}
+            </button>
+            <button
+              type="button"
+              className={language === 'zh' ? 'active' : ''}
+              onClick={() => setLanguage('zh')}
+            >
+              {t('languageChinese')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AppRoot() {
   const view = getAppView();
   if (view === 'metronome') return <MetronomeWindow />;
   if (view === 'tuner') return <TunerWindow />;
   if (view === 'library') return <LibraryWindow />;
   if (view === 'recording') return <RecordingWindow />;
+  if (view === 'settings') return <SettingsWindow />;
   return <MainApp />;
 }
 

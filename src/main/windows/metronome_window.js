@@ -1,7 +1,8 @@
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
+const { getWindowTitle } = require('./window_titles');
 
-function createMetronomeWindow() {
+function createMetronomeWindow(language = 'en') {
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   const isMac = process.platform === 'darwin';
   const metronomeWindow = new BrowserWindow({
@@ -9,7 +10,7 @@ function createMetronomeWindow() {
     height: 640,
     minWidth: 360,
     minHeight: 520,
-    title: 'Metronome',
+    title: getWindowTitle('metronome', language),
     titleBarStyle: isMac ? 'hidden' : 'default',
     backgroundColor: '#f6f1e6',
     autoHideMenuBar: true,

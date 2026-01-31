@@ -1,7 +1,8 @@
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
+const { getWindowTitle } = require('./window_titles');
 
-function createLibraryWindow() {
+function createLibraryWindow(language = 'en') {
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   const isMac = process.platform === 'darwin';
   const libraryWindow = new BrowserWindow({
@@ -9,7 +10,7 @@ function createLibraryWindow() {
     height: 820,
     minWidth: 980,
     minHeight: 680,
-    title: 'Library',
+    title: getWindowTitle('library', language),
     titleBarStyle: isMac ? 'hidden' : 'default',
     backgroundColor: '#f6f1e6',
     autoHideMenuBar: false,
